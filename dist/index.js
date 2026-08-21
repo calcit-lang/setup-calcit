@@ -83,7 +83,10 @@ if (require.main === require.cache[eval('__filename')]) {
 const path = __nccwpck_require__(1017);
 
 const CALCIT_VERSION = /:calcit-version\s+\|?([^\s)\]\}]+)/g;
-const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const SEMVER_IDENTIFIER = "(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)";
+const SEMVER = new RegExp(
+  `^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-${SEMVER_IDENTIFIER}(?:\\.${SEMVER_IDENTIFIER})*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`,
+);
 const SUPPORTED_TOOLS = new Set(["cr", "caps", "cr-wasm"]);
 
 function parseCalcitVersion(content, source = "deps.cirru") {
@@ -93,7 +96,7 @@ function parseCalcitVersion(content, source = "deps.cirru") {
     return null;
   }
   if (matches.length > 1) {
-    throw new Error(`E_SETUP_VERSION_DUPLICATE: found ${matches.length} :calcit-version declarations in ${source}`);
+    throw new Error(`E_SETUP_VERSION_INVALID: found ${matches.length} :calcit-version declarations in ${source}`);
   }
   if (!SEMVER.test(matches[0])) {
     throw new Error(`E_SETUP_VERSION_INVALID: '${matches[0]}' in ${source} is not a Calcit release version`);

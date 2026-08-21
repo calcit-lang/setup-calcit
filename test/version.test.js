@@ -13,9 +13,11 @@ test("reads one Calcit version from deps.cirru", () => {
 test("rejects duplicate and malformed declared versions", () => {
   assert.throws(
     () => parseCalcitVersion("{} (:calcit-version |0.13.27) (:calcit-version |0.13.28)"),
-    /E_SETUP_VERSION_DUPLICATE/,
+    /E_SETUP_VERSION_INVALID/,
   );
-  assert.throws(() => parseCalcitVersion("{} (:calcit-version |main)"), /E_SETUP_VERSION_INVALID/);
+  for (const version of ["main", "01.2.3", "1.2.3-01", "1.2.3-alpha..1"]) {
+    assert.throws(() => parseCalcitVersion(`{} (:calcit-version |${version})`), /E_SETUP_VERSION_INVALID/);
+  }
 });
 
 test("uses deps as the normal version source and rejects conflicts", () => {
@@ -30,6 +32,10 @@ test("uses deps as the normal version source and rejects conflicts", () => {
   assert.throws(
     () => resolveVersion({ depsContent: "{} (:calcit-version |0.13.27)", depsFile: "deps.cirru", inputVersion: "0.13.26" }),
     /E_SETUP_VERSION_CONFLICT/,
+  );
+  assert.throws(
+    () => resolveVersion({ depsContent: "{} (:calcit-version |main)", depsFile: "deps.cirru", inputVersion: "0.13.27" }),
+    /E_SETUP_VERSION_INVALID/,
   );
 });
 
