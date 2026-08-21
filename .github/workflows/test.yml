@@ -14,23 +14,24 @@ jobs:
   test:
     name: Test
     runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        version: [ 0.12.24 ]
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Setup Calcit
+    - name: Test version contract
+      run: npm test
+
+    - name: Setup Calcit from deps.cirru
+      id: setup
       uses: ./
       with:
-        version: ${{ matrix.version }}
-        cr-wasm: true
+        deps-file: test-fixtures/deps.cirru
 
     - name: Capture Calcit
       run: |
+        test "${{ steps.setup.outputs.version }}" = "0.13.27"
+        test "${{ steps.setup.outputs.version-source }}" = "deps-file"
+        test "${{ steps.setup.outputs.tools }}" = "cr,caps"
         cr --help
         caps --help
-        cr-wasm --help
         cr eval "range 100"

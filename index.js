@@ -1,70 +1,69 @@
 const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { execFileSync } = require("child_process");
 const core = require("@actions/core");
 const tc = require("@actions/tool-cache");
+const { resolveDepsFile, resolveTools, resolveVersion } = require("./lib/version");
 
-let version = null;
-
-const bundler = core.getInput("bundler") === "true";
 const crWasm = core.getInput("cr-wasm") === "true";
+const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
 
-/** Extract calcit-version from deps.cirru without an EDN parser.
- *  Format:  {} (:calcit-version |0.12.24)
- */
-function readVersionFromDeps(content) {
-  const m = content.match(/:calcit-version\s+\|?([^\s)\n]+)/);
-  return m ? m[1] : null;
+function createInstallDir(version) {
+  const base = process.env.RUNNER_TEMP || os.tmpdir();
+  return fs.mkdtempSync(path.join(base, `setup-cr-${version}-`));
 }
 
-const binFolder = `/home/runner/bin/`;
+async function installTool({ bin, version, installDir }) {
+  const url = `https://github.com/calcit-lang/calcit/releases/download/${version}/${bin}`;
+  const downloaded = await tc.downloadTool(url);
+  const destination = path.join(installDir, bin);
+  fs.copyFileSync(downloaded, destination);
+  fs.chmodSync(destination, 0o755);
+  core.info(`Installed ${bin} from ${url}`);
+}
 
-async function setup(bin) {
-  try {
-    // Get version of tool to be installed
-
-    let url = `https://github.com/calcit-lang/calcit/releases/download/${version}/${bin}`;
-    let binPath = `${binFolder}${bin}`;
-
-    const pathToCr = await tc.downloadTool(url, binPath);
-    console.log(`downloaded to: ${pathToCr}`);
-
-    fs.chmodSync(binPath, 0o755);
-    core.addPath(binFolder);
-    console.log(`add binary to path: ${binPath}`);
-  } catch (e) {
-    core.setFailed(e);
+function verifyCrVersion(installDir, version) {
+  const reported = execFileSync(path.join(installDir, "cr"), ["--version"], { encoding: "utf8" }).trim();
+  if (reported !== version) {
+    throw new Error(`E_SETUP_VERSION_VERIFY: downloaded cr reports '${reported}', expected '${version}'`);
   }
 }
 
 module.exports = setup;
 
+async function setup() {
+  const { file: depsFile, resolvedFile } = resolveDepsFile(workspace, core.getInput("deps-file"));
+  const depsContent = fs.existsSync(resolvedFile) ? fs.readFileSync(resolvedFile, "utf8") : null;
+  const { version, source } = resolveVersion({
+    depsContent,
+    depsFile,
+    inputVersion: core.getInput("version"),
+  });
+  const tools = resolveTools(core.getInput("tools"), crWasm);
+  const installDir = createInstallDir(version);
+
+  core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
+  await Promise.all(tools.map((bin) => installTool({ bin, version, installDir })));
+  core.addPath(installDir);
+  if (tools.includes("cr")) {
+    verifyCrVersion(installDir, version);
+  }
+
+  core.setOutput("version", version);
+  core.setOutput("version-source", source);
+  core.setOutput("deps-file", depsContent == null ? "" : depsFile);
+  core.setOutput("tools", tools.join(","));
+  await core.summary
+    .addHeading("Calcit setup")
+    .addTable([
+      [{ data: "Version", header: true }, version],
+      [{ data: "Source", header: true }, source],
+      [{ data: "Tools", header: true }, tools.join(", ")],
+    ])
+    .write();
+}
+
 if (require.main === module) {
-  if (fs.existsSync("deps.cirru")) {
-    console.log("Reading deps.cirru");
-    const depsCirru = fs.readFileSync("deps.cirru", "utf8");
-    version = readVersionFromDeps(depsCirru);
-  }
-
-  const inputVersion = core.getInput("version");
-  if (inputVersion) {
-    version = inputVersion;
-  }
-
-  if (!version) {
-    core.setFailed(
-      "Version is not set, neither in deps.cirru (calcit-verison) nor in input(version)",
-    );
-    return;
-  }
-
-  console.log(
-    `Setting up Calcit ${version}, with bundler: ${bundler}, cr-wasm: ${crWasm}`,
-  );
-  setup("cr");
-  setup("caps");
-  if (bundler) {
-    setup("bundle_calcit");
-  }
-  if (crWasm) {
-    setup("cr-wasm");
-  }
+  setup().catch((error) => core.setFailed(error.message || error));
 }

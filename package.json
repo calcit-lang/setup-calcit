@@ -7,6 +7,7 @@
   "author": "tiye <jiyinyiyong@gmail.com>",
   "license": "MIT",
   "scripts": {
+    "test": "node --test",
     "dist": "ncc build index.js -o dist --source-map",
     "stage-dist": "git add -v dist"
   },

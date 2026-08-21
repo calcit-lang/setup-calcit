@@ -3,19 +3,31 @@ name: setup-cr
 description: Setup Calcit runner
 inputs:
   version:
-    description: "Version of Calcit to install"
+    description: "Fallback Calcit version for a task without deps.cirru; must match deps.cirru when both are provided"
     required: false
-  bundler:
-    description: "Whethere to download calcit bunder_command"
+  deps-file:
+    description: "Path to the project deps.cirru, relative to the GitHub workspace"
     required: false
-    default: false
   cr-wasm:
-    description: "Whether to download the cr-wasm binary (available from v0.12.22+)"
+    description: "Compatibility input that additionally installs cr-wasm"
     required: false
     default: false
+  tools:
+    description: "Comma-separated tools to install: cr,caps,cr-wasm"
+    required: false
+    default: "cr,caps"
+outputs:
+  version:
+    description: "Resolved Calcit version"
+  version-source:
+    description: "Whether the version came from deps-file or input"
+  deps-file:
+    description: "Project-relative deps file that was inspected"
+  tools:
+    description: "Comma-separated installed tools"
 
 runs:
-  using: node20
+  using: node24
   main: dist/index.js
 
 branding:
