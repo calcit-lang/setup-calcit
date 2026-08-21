@@ -62,6 +62,34 @@ test("downloads, caches, and marks a fresh tool executable", async () => {
   assert.deepEqual(chmodCalls, [[result.executable, 0o755]]);
 });
 
+test("falls back to the legacy cr release asset when calcit is unavailable", async () => {
+  const urls = [];
+  const result = await installTool({
+    bin: "calcit",
+    version: "0.13.27",
+    toolCache: {
+      find: () => "",
+      downloadTool: async (url) => {
+        urls.push(url);
+        if (url.endsWith("/calcit")) {
+          throw new Error("404");
+        }
+        return "/runner/temp/legacy-cr";
+      },
+      cacheFile: async (source, target, tool, version) => {
+        assert.equal(source, "/runner/temp/legacy-cr");
+        assert.equal(target, "calcit");
+        assert.equal(tool, "calcit-calcit");
+        assert.equal(version, "0.13.27");
+        return "/runner/tool-cache/calcit-calcit/0.13.27/x64";
+      },
+    },
+    fileSystem: { chmodSync: () => {} },
+  });
+  assert.deepEqual(urls, [downloadUrl("calcit", "0.13.27"), downloadUrl("cr", "0.13.27")]);
+  assert.equal(result.executable, "/runner/tool-cache/calcit-calcit/0.13.27/x64/calcit");
+});
+
 test("adds a relative cr compatibility link next to calcit", () => {
   const calls = [];
   const compatibilityPath = ensureCrCompatibilityLink(

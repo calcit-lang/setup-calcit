@@ -2,7 +2,7 @@ const fs = require("fs");
 const { execFileSync } = require("child_process");
 const core = require("@actions/core");
 const tc = require("@actions/tool-cache");
-const { resolveDepsFile, resolveTools, resolveVersion } = require("./lib/version");
+const { resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion } = require("./lib/version");
 const { assertSupportedPlatform, ensureCrCompatibilityLink, installTool } = require("./lib/install");
 
 const crWasm = core.getInput("cr-wasm") === "true";
@@ -26,7 +26,9 @@ async function setup() {
     depsFile,
     inputVersion: core.getInput("version"),
   });
-  const tools = resolveTools(core.getInput("tools"), crWasm);
+  const toolsInput = core.getInput("tools");
+  const tools = resolveTools(toolsInput, crWasm);
+  const outputTools = resolveToolOutput(toolsInput, crWasm);
 
   core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
   const installations = await Promise.all(tools.map((bin) => installTool({ bin, version, toolCache: tc, info: core.info })));
@@ -43,7 +45,7 @@ async function setup() {
   core.setOutput("version", version);
   core.setOutput("version-source", source);
   core.setOutput("deps-file", depsContent == null ? "" : depsFile);
-  core.setOutput("tools", tools.join(","));
+  core.setOutput("tools", outputTools.join(","));
   core.setOutput("cache-hit", String(cacheHit));
   await core.summary
     .addHeading("Calcit setup")

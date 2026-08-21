@@ -13,9 +13,9 @@ inputs:
     required: false
     default: false
   tools:
-    description: "Comma-separated tools to install: calcit,caps,cr-wasm (cr is accepted as a compatibility alias for calcit)"
+    description: "Comma-separated tools to install: calcit,caps,cr-wasm (cr is a compatibility alias for calcit)"
     required: false
-    default: "calcit,caps"
+    default: "cr,caps"
 outputs:
   version:
     description: "Resolved Calcit version"
@@ -24,7 +24,7 @@ outputs:
   deps-file:
     description: "Project-relative deps file that was inspected"
   tools:
-    description: "Comma-separated canonical installed tools (cr is reported as calcit)"
+    description: "Comma-separated requested tools; the legacy cr spelling is preserved for v1 compatibility"
   cache-hit:
     description: "Whether every requested tool was restored from the runner tool cache"
 

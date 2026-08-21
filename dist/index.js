@@ -8,7 +8,7 @@ const fs = __nccwpck_require__(7147);
 const { execFileSync } = __nccwpck_require__(2081);
 const core = __nccwpck_require__(2186);
 const tc = __nccwpck_require__(7784);
-const { resolveDepsFile, resolveTools, resolveVersion } = __nccwpck_require__(8217);
+const { resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion } = __nccwpck_require__(8217);
 const { assertSupportedPlatform, ensureCrCompatibilityLink, installTool } = __nccwpck_require__(9039);
 
 const crWasm = core.getInput("cr-wasm") === "true";
@@ -32,7 +32,9 @@ async function setup() {
     depsFile,
     inputVersion: core.getInput("version"),
   });
-  const tools = resolveTools(core.getInput("tools"), crWasm);
+  const toolsInput = core.getInput("tools");
+  const tools = resolveTools(toolsInput, crWasm);
+  const outputTools = resolveToolOutput(toolsInput, crWasm);
 
   core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
   const installations = await Promise.all(tools.map((bin) => installTool({ bin, version, toolCache: tc, info: core.info })));
@@ -49,7 +51,7 @@ async function setup() {
   core.setOutput("version", version);
   core.setOutput("version-source", source);
   core.setOutput("deps-file", depsContent == null ? "" : depsFile);
-  core.setOutput("tools", tools.join(","));
+  core.setOutput("tools", outputTools.join(","));
   core.setOutput("cache-hit", String(cacheHit));
   await core.summary
     .addHeading("Calcit setup")
@@ -106,11 +108,23 @@ async function installTool({ bin, version, toolCache, info = () => {}, fileSyste
   }
 
   const url = downloadUrl(bin, version);
-  const downloaded = await toolCache.downloadTool(url);
+  let installedUrl = url;
+  let downloaded;
+  try {
+    downloaded = await toolCache.downloadTool(url);
+  } catch (error) {
+    if (bin !== "calcit") {
+      throw error;
+    }
+    const legacyUrl = downloadUrl("cr", version);
+    info(`Calcit asset is unavailable for ${version}; using the compatible legacy cr asset from ${legacyUrl}`);
+    installedUrl = legacyUrl;
+    downloaded = await toolCache.downloadTool(legacyUrl);
+  }
   const installDir = await toolCache.cacheFile(downloaded, bin, tool, version);
   const executable = path.join(installDir, bin);
   fileSystem.chmodSync(executable, 0o755);
-  info(`Installed ${bin} from ${url}`);
+  info(`Installed ${bin} from ${installedUrl}`);
   return { bin, executable, installDir, cacheHit: false };
 }
 
@@ -196,17 +210,7 @@ function resolveDepsFile(workspace, requestedPath) {
 }
 
 function resolveTools(toolsInput, crWasm) {
-  const requested = (toolsInput || "calcit,caps")
-    .split(",")
-    .map((tool) => tool.trim())
-    .filter(Boolean);
-
-  if (crWasm && !requested.includes("cr-wasm")) {
-    requested.push("cr-wasm");
-  }
-  if (requested.length === 0) {
-    throw new Error("E_SETUP_TOOLS_EMPTY: tools must contain at least one supported tool");
-  }
+  const requested = requestedTools(toolsInput, crWasm);
 
   const unique = new Set();
   for (const requestedTool of requested) {
@@ -222,7 +226,28 @@ function resolveTools(toolsInput, crWasm) {
   return [...unique];
 }
 
-module.exports = { parseCalcitVersion, resolveDepsFile, resolveTools, resolveVersion };
+function resolveToolOutput(toolsInput, crWasm) {
+  const requested = requestedTools(toolsInput, crWasm);
+  resolveTools(toolsInput, crWasm);
+  return [...new Set(requested)];
+}
+
+function requestedTools(toolsInput, crWasm) {
+  const requested = (toolsInput || "cr,caps")
+    .split(",")
+    .map((tool) => tool.trim())
+    .filter(Boolean);
+
+  if (crWasm && !requested.includes("cr-wasm")) {
+    requested.push("cr-wasm");
+  }
+  if (requested.length === 0) {
+    throw new Error("E_SETUP_TOOLS_EMPTY: tools must contain at least one supported tool");
+  }
+  return requested;
+}
+
+module.exports = { parseCalcitVersion, resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion };
 
 
 /***/ }),

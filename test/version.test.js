@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
-const { parseCalcitVersion, resolveDepsFile, resolveTools, resolveVersion } = require("../lib/version");
+const { parseCalcitVersion, resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion } = require("../lib/version");
 
 test("reads one Calcit version from deps.cirru", () => {
   assert.equal(parseCalcitVersion("{} (:calcit-version |0.13.27)"), "0.13.27");
@@ -53,6 +53,8 @@ test("normalizes requested tools without bundler", () => {
   assert.deepEqual(resolveTools("", false), ["calcit", "caps"]);
   assert.deepEqual(resolveTools("cr,caps", false), ["calcit", "caps"]);
   assert.deepEqual(resolveTools("calcit,caps", true), ["calcit", "caps", "cr-wasm"]);
+  assert.deepEqual(resolveToolOutput("", false), ["cr", "caps"]);
+  assert.deepEqual(resolveToolOutput("calcit,caps", false), ["calcit", "caps"]);
   assert.throws(() => resolveTools("calcit,bundle_calcit", false), /E_SETUP_TOOL_UNKNOWN/);
   assert.throws(() => resolveTools("cr,calcit", false), /E_SETUP_TOOL_DUPLICATE/);
 });
