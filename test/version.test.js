@@ -29,6 +29,10 @@ test("uses deps as the normal version source and rejects conflicts", () => {
     resolveVersion({ depsContent: null, depsFile: "deps.cirru", inputVersion: "0.13.27" }),
     { version: "0.13.27", source: "input" },
   );
+  assert.deepEqual(
+    resolveVersion({ depsContent: null, depsFile: "examples/missing/deps.cirru", inputVersion: "0.13.27" }),
+    { version: "0.13.27", source: "input" },
+  );
   assert.throws(
     () => resolveVersion({ depsContent: "{} (:calcit-version |0.13.27)", depsFile: "deps.cirru", inputVersion: "0.13.26" }),
     /E_SETUP_VERSION_CONFLICT/,

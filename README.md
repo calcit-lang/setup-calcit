@@ -27,13 +27,17 @@ run your tests.
 
 ### Inputs
 
-- `deps-file`: project-relative path to `deps.cirru`; defaults to the workspace root.
+- `deps-file`: project-relative path to `deps.cirru`; defaults to the workspace root. If the selected
+  file does not exist, it is treated as a task without a project declaration and requires the `version`
+  fallback input.
 - `tools`: comma-separated tools to install; defaults to `cr,caps`, and also accepts `cr-wasm`.
 - `cr-wasm`: compatibility input that adds `cr-wasm` to `tools`.
 - `version`: fallback only for a task without `deps.cirru`. If both sources exist, values must match.
 
-The Action rejects a missing, malformed, duplicate, or conflicting version declaration before downloading
-anything. It exposes `version`, `version-source`, `deps-file`, and `tools` as outputs.
+The Action rejects malformed, duplicate, or conflicting declarations before downloading anything. A
+missing selected file or a file without `:calcit-version` can use `version`; without either source it
+fails with `E_SETUP_VERSION_MISSING`. It exposes `version`, `version-source`, `deps-file`, and `tools`
+as outputs.
 
 `bundle_calcit`/`bundler` are no longer supported.
 
