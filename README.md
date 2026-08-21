@@ -1,6 +1,6 @@
-## Action to set up [Calcit](https://calcit-lang.org/)
+# setup-calcit
 
-`setup-cr` installs the Calcit tools declared by the checked-out project. For a normal project, the
+`setup-calcit` installs the Calcit tools declared by the checked-out project. For a normal project, the
 only Calcit version source is `deps.cirru`:
 
 ```cirru.no-check
@@ -12,7 +12,7 @@ only Calcit version source is `deps.cirru`:
 ```yml
 - uses: actions/checkout@v4
 
-- uses: calcit-lang/setup-cr@0.0.9
+- uses: tiye/setup-calcit@v1
 ```
 
 This installs `cr` and `caps` for the version in `deps.cirru`. Then run project commands explicitly:
@@ -41,10 +41,25 @@ as outputs.
 
 `bundle_calcit`/`bundler` are no longer supported.
 
+### Migrating from setup-cr
+
+GitHub Actions does not follow action-repository rename redirects. Therefore
+[`calcit-lang/setup-cr`](https://github.com/calcit-lang/setup-cr) remains the
+legacy Action and existing workflows do not need to change. New projects should
+use `tiye/setup-calcit@v1`; migrating an existing project is an explicit,
+one-line replacement after its CI has passed:
+
+```yaml
+- uses: tiye/setup-calcit@v1
+```
+
+The two Actions keep the same inputs and outputs during the migration. Do not
+depend on a repository redirect for `uses:` references.
+
 For CI quality, entries, examples, backend tests, and consumer regression, see the Calcit documentation:
 
 ```bash
-cr docs search setup-cr --summary
+cr docs search setup-calcit --summary
 cr docs read library-quality.md --full
 ```
 

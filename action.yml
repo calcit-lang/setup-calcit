@@ -1,6 +1,6 @@
 
-name: setup-cr
-description: Setup Calcit runner
+name: setup-calcit
+description: Set up Calcit tools from the project declaration
 inputs:
   version:
     description: "Fallback Calcit version for a task without deps.cirru; must match deps.cirru when both are provided"

@@ -17,7 +17,7 @@ const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
 
 function createInstallDir(version) {
   const base = process.env.RUNNER_TEMP || os.tmpdir();
-  return fs.mkdtempSync(path.join(base, `setup-cr-${version}-`));
+  return fs.mkdtempSync(path.join(base, `setup-calcit-${version}-`));
 }
 
 async function installTool({ bin, version, installDir }) {
