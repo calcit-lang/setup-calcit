@@ -21,25 +21,28 @@ jobs:
     - name: Test version contract
       run: npm test
 
-    - name: Setup Calcit from deps.cirru
+    # The fixture uses the last cr-only release. Until calcit#376 is released,
+    # exercise the still-published caps asset here; calcit/link behavior has
+    # unit coverage and is exercised by the v2 release after publishing.
+    - name: Setup cached caps from deps.cirru
       id: setup
       uses: ./
       with:
         deps-file: test-fixtures/deps.cirru
+        tools: caps
 
-    - name: Reuse Calcit tools from the runner cache
+    - name: Reuse cached caps from the runner cache
       id: setup-cached
       uses: ./
       with:
         deps-file: test-fixtures/deps.cirru
+        tools: caps
 
     - name: Capture Calcit
       run: |
         test "${{ steps.setup.outputs.version }}" = "0.13.27"
         test "${{ steps.setup.outputs.version-source }}" = "deps-file"
-        test "${{ steps.setup.outputs.tools }}" = "cr,caps"
+        test "${{ steps.setup.outputs.tools }}" = "caps"
         test "${{ steps.setup.outputs.cache-hit }}" = "false"
         test "${{ steps.setup-cached.outputs.cache-hit }}" = "true"
-        cr --help
         caps --help
-        cr eval "range 100"

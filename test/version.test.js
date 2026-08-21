@@ -50,8 +50,9 @@ test("confines deps-file to the workspace", () => {
 });
 
 test("normalizes requested tools without bundler", () => {
-  assert.deepEqual(resolveTools("cr,caps", false), ["cr", "caps"]);
-  assert.deepEqual(resolveTools("cr,caps", true), ["cr", "caps", "cr-wasm"]);
-  assert.throws(() => resolveTools("cr,bundle_calcit", false), /E_SETUP_TOOL_UNKNOWN/);
-  assert.throws(() => resolveTools("cr,cr", false), /E_SETUP_TOOL_DUPLICATE/);
+  assert.deepEqual(resolveTools("", false), ["calcit", "caps"]);
+  assert.deepEqual(resolveTools("cr,caps", false), ["calcit", "caps"]);
+  assert.deepEqual(resolveTools("calcit,caps", true), ["calcit", "caps", "cr-wasm"]);
+  assert.throws(() => resolveTools("calcit,bundle_calcit", false), /E_SETUP_TOOL_UNKNOWN/);
+  assert.throws(() => resolveTools("cr,calcit", false), /E_SETUP_TOOL_DUPLICATE/);
 });

@@ -3,15 +3,15 @@ const { execFileSync } = require("child_process");
 const core = require("@actions/core");
 const tc = require("@actions/tool-cache");
 const { resolveDepsFile, resolveTools, resolveVersion } = require("./lib/version");
-const { assertSupportedPlatform, installTool } = require("./lib/install");
+const { assertSupportedPlatform, ensureCrCompatibilityLink, installTool } = require("./lib/install");
 
 const crWasm = core.getInput("cr-wasm") === "true";
 const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
 
-function verifyCrVersion(executable, version) {
+function verifyCalcitVersion(executable, version) {
   const reported = execFileSync(executable, ["--version"], { encoding: "utf8" }).trim();
   if (reported !== version) {
-    throw new Error(`E_SETUP_VERSION_VERIFY: downloaded cr reports '${reported}', expected '${version}'`);
+    throw new Error(`E_SETUP_VERSION_VERIFY: downloaded calcit reports '${reported}', expected '${version}'`);
   }
 }
 
@@ -33,9 +33,10 @@ async function setup() {
   for (const installation of installations) {
     core.addPath(installation.installDir);
   }
-  const cr = installations.find((installation) => installation.bin === "cr");
-  if (cr) {
-    verifyCrVersion(cr.executable, version);
+  const calcit = installations.find((installation) => installation.bin === "calcit");
+  if (calcit) {
+    ensureCrCompatibilityLink(calcit);
+    verifyCalcitVersion(calcit.executable, version);
   }
   const cacheHit = installations.every((installation) => installation.cacheHit);
 
