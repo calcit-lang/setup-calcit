@@ -3,7 +3,7 @@ const { execFileSync } = require("child_process");
 const core = require("@actions/core");
 const tc = require("@actions/tool-cache");
 const { resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion } = require("./lib/version");
-const { assertSupportedPlatform, ensureCrCompatibilityLink, installTool } = require("./lib/install");
+const { assertSupportedPlatform, downloadReleaseManifest, ensureCrCompatibilityLink, installTool } = require("./lib/install");
 
 const crWasm = core.getInput("cr-wasm") === "true";
 const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
@@ -31,7 +31,8 @@ async function setup() {
   const outputTools = resolveToolOutput(toolsInput, crWasm);
 
   core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
-  const installations = await Promise.all(tools.map((bin) => installTool({ bin, version, toolCache: tc, info: core.info })));
+  const manifest = await downloadReleaseManifest({ version, toolCache: tc, info: core.info });
+  const installations = await Promise.all(tools.map((bin) => installTool({ bin, version, toolCache: tc, manifest, info: core.info })));
   for (const installation of installations) {
     core.addPath(installation.installDir);
   }
