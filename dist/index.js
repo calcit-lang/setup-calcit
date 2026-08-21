@@ -9,7 +9,7 @@ const { execFileSync } = __nccwpck_require__(2081);
 const core = __nccwpck_require__(2186);
 const tc = __nccwpck_require__(7784);
 const { resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion } = __nccwpck_require__(8217);
-const { assertSupportedPlatform, ensureCrCompatibilityLink, installTool } = __nccwpck_require__(9039);
+const { assertSupportedPlatform, downloadReleaseManifest, ensureCrCompatibilityLink, installTool } = __nccwpck_require__(9039);
 
 const crWasm = core.getInput("cr-wasm") === "true";
 const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
@@ -37,7 +37,8 @@ async function setup() {
   const outputTools = resolveToolOutput(toolsInput, crWasm);
 
   core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
-  const installations = await Promise.all(tools.map((bin) => installTool({ bin, version, toolCache: tc, info: core.info })));
+  const manifest = await downloadReleaseManifest({ version, toolCache: tc, info: core.info });
+  const installations = await Promise.all(tools.map((bin) => installTool({ bin, version, toolCache: tc, manifest, info: core.info })));
   for (const installation of installations) {
     core.addPath(installation.installDir);
   }
@@ -77,6 +78,7 @@ if (require.main === require.cache[eval('__filename')]) {
 const fs = __nccwpck_require__(7147);
 const os = __nccwpck_require__(2037);
 const path = __nccwpck_require__(1017);
+const { createHash } = __nccwpck_require__(6113);
 
 function assertSupportedPlatform(platform = os.platform(), arch = os.arch()) {
   if (platform !== "linux" || arch !== "x64") {
@@ -94,18 +96,63 @@ function downloadUrl(bin, version) {
   return `https://github.com/calcit-lang/calcit/releases/download/${version}/${bin}`;
 }
 
+function manifestUrl(version) {
+  return downloadUrl("calcit-release-manifest.json", version);
+}
+
 function isNotFoundError(error) {
   return error?.httpStatusCode === 404 || error?.statusCode === 404;
 }
 
-async function installTool({ bin, version, toolCache, info = () => {}, fileSystem = fs }) {
+async function downloadReleaseManifest({ version, toolCache, info = () => {}, fileSystem = fs }) {
+  try {
+    const downloaded = await toolCache.downloadTool(manifestUrl(version));
+    const manifest = JSON.parse(fileSystem.readFileSync(downloaded, "utf8"));
+    if (manifest.schemaVersion !== 1 || manifest.version !== version || !Array.isArray(manifest.assets)) {
+      throw new Error(`E_SETUP_MANIFEST_INVALID: malformed release manifest for ${version}`);
+    }
+    for (const asset of manifest.assets) {
+      if (typeof asset?.name !== "string" || !/^[a-f0-9]{64}$/.test(asset.sha256) || !Number.isInteger(asset.size)) {
+        throw new Error(`E_SETUP_MANIFEST_INVALID: malformed asset record in release manifest for ${version}`);
+      }
+    }
+    return manifest;
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      throw error;
+    }
+    info(`Release ${version} has no checksum manifest; continuing in legacy compatibility mode`);
+    return null;
+  }
+}
+
+function verifyAssetChecksum({ downloaded, assetName, manifest, fileSystem = fs }) {
+  if (manifest == null) {
+    return;
+  }
+  const asset = manifest.assets.find((item) => item.name === assetName);
+  if (asset == null) {
+    throw new Error(`E_SETUP_MANIFEST_ASSET_MISSING: release manifest for ${manifest.version} has no ${assetName} checksum`);
+  }
+  const content = fileSystem.readFileSync(downloaded);
+  const actualHash = createHash("sha256").update(content).digest("hex");
+  if (actualHash !== asset.sha256 || content.length !== asset.size) {
+    throw new Error(
+      `E_SETUP_CHECKSUM_MISMATCH: ${assetName} for ${manifest.version} did not match the published release manifest`,
+    );
+  }
+}
+
+async function installTool({ bin, version, toolCache, manifest = null, info = () => {}, fileSystem = fs }) {
   const tool = cacheName(bin);
   const cachedDir = toolCache.find(tool, version);
   if (cachedDir) {
     info(`Using cached ${bin} ${version} from ${cachedDir}`);
+    const executable = path.join(cachedDir, bin);
+    verifyAssetChecksum({ downloaded: executable, assetName: bin, manifest, fileSystem });
     return {
       bin,
-      executable: path.join(cachedDir, bin),
+      executable,
       installDir: cachedDir,
       cacheHit: true,
     };
@@ -125,6 +172,7 @@ async function installTool({ bin, version, toolCache, info = () => {}, fileSyste
     installedUrl = legacyUrl;
     downloaded = await toolCache.downloadTool(legacyUrl);
   }
+  verifyAssetChecksum({ downloaded, assetName: path.basename(installedUrl), manifest, fileSystem });
   const installDir = await toolCache.cacheFile(downloaded, bin, tool, version);
   const executable = path.join(installDir, bin);
   fileSystem.chmodSync(executable, 0o755);
@@ -147,7 +195,16 @@ function ensureCrCompatibilityLink(installation, fileSystem = fs) {
   return compatibilityPath;
 }
 
-module.exports = { assertSupportedPlatform, cacheName, downloadUrl, ensureCrCompatibilityLink, installTool };
+module.exports = {
+  assertSupportedPlatform,
+  cacheName,
+  downloadReleaseManifest,
+  downloadUrl,
+  ensureCrCompatibilityLink,
+  installTool,
+  manifestUrl,
+  verifyAssetChecksum,
+};
 
 
 /***/ }),
