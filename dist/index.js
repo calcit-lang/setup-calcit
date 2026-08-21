@@ -94,6 +94,10 @@ function downloadUrl(bin, version) {
   return `https://github.com/calcit-lang/calcit/releases/download/${version}/${bin}`;
 }
 
+function isNotFoundError(error) {
+  return error?.httpStatusCode === 404 || error?.statusCode === 404;
+}
+
 async function installTool({ bin, version, toolCache, info = () => {}, fileSystem = fs }) {
   const tool = cacheName(bin);
   const cachedDir = toolCache.find(tool, version);
@@ -113,7 +117,7 @@ async function installTool({ bin, version, toolCache, info = () => {}, fileSyste
   try {
     downloaded = await toolCache.downloadTool(url);
   } catch (error) {
-    if (bin !== "calcit") {
+    if (bin !== "calcit" || !isNotFoundError(error)) {
       throw error;
     }
     const legacyUrl = downloadUrl("cr", version);

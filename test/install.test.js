@@ -72,7 +72,7 @@ test("falls back to the legacy cr release asset when calcit is unavailable", asy
       downloadTool: async (url) => {
         urls.push(url);
         if (url.endsWith("/calcit")) {
-          throw new Error("404");
+          throw { httpStatusCode: 404 };
         }
         return "/runner/temp/legacy-cr";
       },
@@ -88,6 +88,28 @@ test("falls back to the legacy cr release asset when calcit is unavailable", asy
   });
   assert.deepEqual(urls, [downloadUrl("calcit", "0.13.27"), downloadUrl("cr", "0.13.27")]);
   assert.equal(result.executable, "/runner/tool-cache/calcit-calcit/0.13.27/x64/calcit");
+});
+
+test("does not mask non-404 calcit download failures with a legacy fallback", async () => {
+  const urls = [];
+  const failure = { httpStatusCode: 503 };
+
+  await assert.rejects(
+    installTool({
+      bin: "calcit",
+      version: "0.13.27",
+      toolCache: {
+        find: () => "",
+        downloadTool: async (url) => {
+          urls.push(url);
+          throw failure;
+        },
+        cacheFile: () => assert.fail("a failed download must not be cached"),
+      },
+    }),
+    (error) => error === failure,
+  );
+  assert.deepEqual(urls, [downloadUrl("calcit", "0.13.27")]);
 });
 
 test("adds a relative cr compatibility link next to calcit", () => {
