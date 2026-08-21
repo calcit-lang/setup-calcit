@@ -50,6 +50,9 @@ reuse it. Its `cache-hit` output is `true` only when every requested tool came f
 that publish `calcit-release-manifest.json` are verified against its SHA-256 and byte-size record before a
 binary is cached or added to `PATH`. Older releases without that manifest remain explicitly supported in
 legacy compatibility mode; the Action logs that checksum verification is unavailable rather than claiming it ran.
+For a release that does publish a manifest, the Action fetches it even on a tool-cache hit: the cache is not a
+trust boundary, so every executable added to `PATH` is checked against the release checksum. A manifest download
+failure other than the legacy 404 therefore fails the setup instead of trusting an unverifiable cached binary.
 
 ### Migrating from setup-cr
 

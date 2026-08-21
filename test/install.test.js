@@ -64,6 +64,17 @@ test("keeps releases without a manifest in explicit legacy compatibility mode", 
   assert.match(messages[0], /no checksum manifest/);
 });
 
+test("reports malformed manifest JSON with the setup error prefix", async () => {
+  await assert.rejects(
+    downloadReleaseManifest({
+      version: "0.13.27",
+      toolCache: { downloadTool: async () => "/runner/temp/manifest" },
+      fileSystem: { readFileSync: () => "not valid JSON" },
+    }),
+    /E_SETUP_MANIFEST_INVALID: malformed release manifest for 0\.13\.27/,
+  );
+});
+
 test("restores a cached tool without downloading it", async () => {
   const result = await installTool({
     bin: "calcit",

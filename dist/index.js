@@ -107,7 +107,12 @@ function isNotFoundError(error) {
 async function downloadReleaseManifest({ version, toolCache, info = () => {}, fileSystem = fs }) {
   try {
     const downloaded = await toolCache.downloadTool(manifestUrl(version));
-    const manifest = JSON.parse(fileSystem.readFileSync(downloaded, "utf8"));
+    let manifest;
+    try {
+      manifest = JSON.parse(fileSystem.readFileSync(downloaded, "utf8"));
+    } catch (_error) {
+      throw new Error(`E_SETUP_MANIFEST_INVALID: malformed release manifest for ${version}`);
+    }
     if (manifest.schemaVersion !== 1 || manifest.version !== version || !Array.isArray(manifest.assets)) {
       throw new Error(`E_SETUP_MANIFEST_INVALID: malformed release manifest for ${version}`);
     }
