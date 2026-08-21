@@ -25,6 +25,8 @@ outputs:
     description: "Project-relative deps file that was inspected"
   tools:
     description: "Comma-separated installed tools"
+  cache-hit:
+    description: "Whether every requested tool was restored from the runner tool cache"
 
 runs:
   using: node24

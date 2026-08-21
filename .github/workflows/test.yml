@@ -27,11 +27,19 @@ jobs:
       with:
         deps-file: test-fixtures/deps.cirru
 
+    - name: Reuse Calcit tools from the runner cache
+      id: setup-cached
+      uses: ./
+      with:
+        deps-file: test-fixtures/deps.cirru
+
     - name: Capture Calcit
       run: |
         test "${{ steps.setup.outputs.version }}" = "0.13.27"
         test "${{ steps.setup.outputs.version-source }}" = "deps-file"
         test "${{ steps.setup.outputs.tools }}" = "cr,caps"
+        test "${{ steps.setup.outputs.cache-hit }}" = "false"
+        test "${{ steps.setup-cached.outputs.cache-hit }}" = "true"
         cr --help
         caps --help
         cr eval "range 100"

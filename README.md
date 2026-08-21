@@ -39,7 +39,9 @@ missing selected file or a file without `:calcit-version` can use `version`; wit
 fails with `E_SETUP_VERSION_MISSING`. It exposes `version`, `version-source`, `deps-file`, and `tools`
 as outputs.
 
-`bundle_calcit`/`bundler` are no longer supported.
+`bundle_calcit`/`bundler` are no longer supported. The current release assets support Linux x64 runners.
+The Action caches each downloaded tool in the runner tool cache, so repeated setup steps in the same job
+reuse it. Its `cache-hit` output is `true` only when every requested tool came from that cache.
 
 ### Migrating from setup-cr
 
