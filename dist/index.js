@@ -9,15 +9,15 @@ const { execFileSync } = __nccwpck_require__(2081);
 const core = __nccwpck_require__(2186);
 const tc = __nccwpck_require__(7784);
 const { resolveDepsFile, resolveTools, resolveVersion } = __nccwpck_require__(8217);
-const { assertSupportedPlatform, installTool } = __nccwpck_require__(9039);
+const { assertSupportedPlatform, ensureCrCompatibilityLink, installTool } = __nccwpck_require__(9039);
 
 const crWasm = core.getInput("cr-wasm") === "true";
 const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
 
-function verifyCrVersion(executable, version) {
+function verifyCalcitVersion(executable, version) {
   const reported = execFileSync(executable, ["--version"], { encoding: "utf8" }).trim();
   if (reported !== version) {
-    throw new Error(`E_SETUP_VERSION_VERIFY: downloaded cr reports '${reported}', expected '${version}'`);
+    throw new Error(`E_SETUP_VERSION_VERIFY: downloaded calcit reports '${reported}', expected '${version}'`);
   }
 }
 
@@ -39,9 +39,10 @@ async function setup() {
   for (const installation of installations) {
     core.addPath(installation.installDir);
   }
-  const cr = installations.find((installation) => installation.bin === "cr");
-  if (cr) {
-    verifyCrVersion(cr.executable, version);
+  const calcit = installations.find((installation) => installation.bin === "calcit");
+  if (calcit) {
+    ensureCrCompatibilityLink(calcit);
+    verifyCalcitVersion(calcit.executable, version);
   }
   const cacheHit = installations.every((installation) => installation.cacheHit);
 
@@ -113,7 +114,22 @@ async function installTool({ bin, version, toolCache, info = () => {}, fileSyste
   return { bin, executable, installDir, cacheHit: false };
 }
 
-module.exports = { assertSupportedPlatform, cacheName, downloadUrl, installTool };
+function ensureCrCompatibilityLink(installation, fileSystem = fs) {
+  const compatibilityPath = path.join(installation.installDir, "cr");
+  if (fileSystem.existsSync(compatibilityPath)) {
+    return compatibilityPath;
+  }
+
+  try {
+    fileSystem.symlinkSync(path.basename(installation.executable), compatibilityPath);
+  } catch (error) {
+    fileSystem.copyFileSync(installation.executable, compatibilityPath);
+    fileSystem.chmodSync(compatibilityPath, 0o755);
+  }
+  return compatibilityPath;
+}
+
+module.exports = { assertSupportedPlatform, cacheName, downloadUrl, ensureCrCompatibilityLink, installTool };
 
 
 /***/ }),
@@ -128,7 +144,7 @@ const SEMVER_IDENTIFIER = "(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)";
 const SEMVER = new RegExp(
   `^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-${SEMVER_IDENTIFIER}(?:\\.${SEMVER_IDENTIFIER})*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`,
 );
-const SUPPORTED_TOOLS = new Set(["cr", "caps", "cr-wasm"]);
+const SUPPORTED_TOOLS = new Set(["calcit", "caps", "cr-wasm"]);
 
 function parseCalcitVersion(content, source = "deps.cirru") {
   const matches = Array.from(content.matchAll(CALCIT_VERSION), (match) => match[1]);
@@ -180,7 +196,7 @@ function resolveDepsFile(workspace, requestedPath) {
 }
 
 function resolveTools(toolsInput, crWasm) {
-  const requested = (toolsInput || "cr,caps")
+  const requested = (toolsInput || "calcit,caps")
     .split(",")
     .map((tool) => tool.trim())
     .filter(Boolean);
@@ -193,12 +209,13 @@ function resolveTools(toolsInput, crWasm) {
   }
 
   const unique = new Set();
-  for (const tool of requested) {
+  for (const requestedTool of requested) {
+    const tool = requestedTool === "cr" ? "calcit" : requestedTool;
     if (!SUPPORTED_TOOLS.has(tool)) {
-      throw new Error(`E_SETUP_TOOL_UNKNOWN: '${tool}' is not supported; use cr, caps, or cr-wasm`);
+      throw new Error(`E_SETUP_TOOL_UNKNOWN: '${requestedTool}' is not supported; use calcit, caps, or cr-wasm`);
     }
     if (unique.has(tool)) {
-      throw new Error(`E_SETUP_TOOL_DUPLICATE: '${tool}' appears more than once`);
+      throw new Error(`E_SETUP_TOOL_DUPLICATE: '${tool}' appears more than once (cr is an alias for calcit)`);
     }
     unique.add(tool);
   }

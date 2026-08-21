@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { assertSupportedPlatform, cacheName, downloadUrl, installTool } = require("../lib/install");
+const { assertSupportedPlatform, cacheName, downloadUrl, ensureCrCompatibilityLink, installTool } = require("../lib/install");
 
 test("accepts only the released Linux x64 artifact platform", () => {
   assert.doesNotThrow(() => assertSupportedPlatform("linux", "x64"));
@@ -10,28 +10,28 @@ test("accepts only the released Linux x64 artifact platform", () => {
 });
 
 test("uses a stable per-tool cache name and release URL", () => {
-  assert.equal(cacheName("cr"), "calcit-cr");
+  assert.equal(cacheName("calcit"), "calcit-calcit");
   assert.equal(downloadUrl("caps", "0.13.27"), "https://github.com/calcit-lang/calcit/releases/download/0.13.27/caps");
 });
 
 test("restores a cached tool without downloading it", async () => {
   const result = await installTool({
-    bin: "cr",
+    bin: "calcit",
     version: "0.13.27",
     toolCache: {
       find: (tool, version) => {
-        assert.equal(tool, "calcit-cr");
+        assert.equal(tool, "calcit-calcit");
         assert.equal(version, "0.13.27");
-        return "/runner/tool-cache/calcit-cr/0.13.27/x64";
+        return "/runner/tool-cache/calcit-calcit/0.13.27/x64";
       },
       downloadTool: () => assert.fail("a cache hit must not download"),
       cacheFile: () => assert.fail("a cache hit must not cache"),
     },
   });
   assert.deepEqual(result, {
-    bin: "cr",
-    executable: "/runner/tool-cache/calcit-cr/0.13.27/x64/cr",
-    installDir: "/runner/tool-cache/calcit-cr/0.13.27/x64",
+    bin: "calcit",
+    executable: "/runner/tool-cache/calcit-calcit/0.13.27/x64/calcit",
+    installDir: "/runner/tool-cache/calcit-calcit/0.13.27/x64",
     cacheHit: true,
   });
 });
@@ -60,4 +60,38 @@ test("downloads, caches, and marks a fresh tool executable", async () => {
   assert.equal(result.cacheHit, false);
   assert.equal(result.executable, "/runner/tool-cache/calcit-caps/0.13.27/x64/caps");
   assert.deepEqual(chmodCalls, [[result.executable, 0o755]]);
+});
+
+test("adds a relative cr compatibility link next to calcit", () => {
+  const calls = [];
+  const compatibilityPath = ensureCrCompatibilityLink(
+    { executable: "/runner/tool-cache/calcit-calcit/0.13.27/x64/calcit", installDir: "/runner/tool-cache/calcit-calcit/0.13.27/x64" },
+    {
+      existsSync: () => false,
+      symlinkSync: (...args) => calls.push(args),
+      copyFileSync: () => assert.fail("symlink should succeed"),
+      chmodSync: () => assert.fail("symlink should not need chmod"),
+    },
+  );
+  assert.equal(compatibilityPath, "/runner/tool-cache/calcit-calcit/0.13.27/x64/cr");
+  assert.deepEqual(calls, [["calcit", compatibilityPath]]);
+});
+
+test("copies calcit only when a compatibility link cannot be created", () => {
+  const calls = [];
+  ensureCrCompatibilityLink(
+    { executable: "/runner/tool-cache/calcit-calcit/0.13.27/x64/calcit", installDir: "/runner/tool-cache/calcit-calcit/0.13.27/x64" },
+    {
+      existsSync: () => false,
+      symlinkSync: () => {
+        throw new Error("link unavailable");
+      },
+      copyFileSync: (...args) => calls.push(["copy", ...args]),
+      chmodSync: (...args) => calls.push(["chmod", ...args]),
+    },
+  );
+  assert.deepEqual(calls, [
+    ["copy", "/runner/tool-cache/calcit-calcit/0.13.27/x64/calcit", "/runner/tool-cache/calcit-calcit/0.13.27/x64/cr"],
+    ["chmod", "/runner/tool-cache/calcit-calcit/0.13.27/x64/cr", 0o755],
+  ]);
 });

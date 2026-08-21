@@ -13,9 +13,9 @@ inputs:
     required: false
     default: false
   tools:
-    description: "Comma-separated tools to install: cr,caps,cr-wasm"
+    description: "Comma-separated tools to install: calcit,caps,cr-wasm (cr is accepted as a compatibility alias for calcit)"
     required: false
-    default: "cr,caps"
+    default: "calcit,caps"
 outputs:
   version:
     description: "Resolved Calcit version"

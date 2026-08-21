@@ -12,14 +12,16 @@ only Calcit version source is `deps.cirru`:
 ```yml
 - uses: actions/checkout@v4
 
-- uses: calcit-lang/setup-calcit@v1
+- uses: calcit-lang/setup-calcit@v2
 ```
 
-This installs `cr` and `caps` for the version in `deps.cirru`. Then run project commands explicitly:
+This downloads only `calcit` and `caps` for the version in `deps.cirru`. It also creates a lightweight
+`cr -> calcit` link in the Action tool directory, so an unchanged legacy workflow keeps working while it
+migrates. New and edited commands should use `calcit`:
 
 ```yml
 - run: caps --ci
-- run: cr calcit.cirru --check-only
+- run: calcit calcit.cirru --check-only
 ```
 
 The Action only installs tools. It does not install modules, format a Snapshot, run a quality gate, or
@@ -30,7 +32,8 @@ run your tests.
 - `deps-file`: project-relative path to `deps.cirru`; defaults to the workspace root. If the selected
   file does not exist, it is treated as a task without a project declaration and requires the `version`
   fallback input.
-- `tools`: comma-separated tools to install; defaults to `cr,caps`, and also accepts `cr-wasm`.
+- `tools`: comma-separated tools to install; defaults to `calcit,caps`, and also accepts `cr-wasm`. `cr`
+  is accepted as a compatibility alias for `calcit`; requesting both is a duplicate error.
 - `cr-wasm`: compatibility input that adds `cr-wasm` to `tools`.
 - `version`: fallback only for a task without `deps.cirru`. If both sources exist, values must match.
 
@@ -48,21 +51,22 @@ reuse it. Its `cache-hit` output is `true` only when every requested tool came f
 GitHub Actions does not follow action-repository rename redirects. Therefore
 [`calcit-lang/setup-cr`](https://github.com/calcit-lang/setup-cr) remains the
 legacy Action and existing workflows do not need to change. New projects should
-use `calcit-lang/setup-calcit@v1`; migrating an existing project is an explicit,
+use `calcit-lang/setup-calcit@v2`; migrating an existing project is an explicit,
 one-line replacement after its CI has passed:
 
 ```yaml
-- uses: calcit-lang/setup-calcit@v1
+- uses: calcit-lang/setup-calcit@v2
 ```
 
-The two Actions keep the same inputs and outputs during the migration. Do not
-depend on a repository redirect for `uses:` references.
+The two Actions preserve the version inputs and outputs during migration; v2
+also accepts the old `tools: cr,...` spelling as an alias. Do not depend on a
+repository redirect for `uses:` references.
 
 For CI quality, entries, examples, backend tests, and consumer regression, see the Calcit documentation:
 
 ```bash
-cr docs search setup-calcit --summary
-cr docs read library-quality.md --full
+calcit docs search setup-calcit --summary
+calcit docs read library-quality.md --full
 ```
 
 ### License
