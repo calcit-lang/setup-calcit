@@ -5,75 +5,166 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 const fs = __nccwpck_require__(7147);
+const os = __nccwpck_require__(2037);
+const path = __nccwpck_require__(1017);
+const { execFileSync } = __nccwpck_require__(2081);
 const core = __nccwpck_require__(2186);
 const tc = __nccwpck_require__(7784);
+const { resolveDepsFile, resolveTools, resolveVersion } = __nccwpck_require__(8217);
 
-let version = null;
-
-const bundler = core.getInput("bundler") === "true";
 const crWasm = core.getInput("cr-wasm") === "true";
+const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
 
-/** Extract calcit-version from deps.cirru without an EDN parser.
- *  Format:  {} (:calcit-version |0.12.24)
- */
-function readVersionFromDeps(content) {
-  const m = content.match(/:calcit-version\s+\|?([^\s)\n]+)/);
-  return m ? m[1] : null;
+function createInstallDir(version) {
+  const base = process.env.RUNNER_TEMP || os.tmpdir();
+  return fs.mkdtempSync(path.join(base, `setup-calcit-${version}-`));
 }
 
-const binFolder = `/home/runner/bin/`;
+async function installTool({ bin, version, installDir }) {
+  const url = `https://github.com/calcit-lang/calcit/releases/download/${version}/${bin}`;
+  const downloaded = await tc.downloadTool(url);
+  const destination = path.join(installDir, bin);
+  fs.copyFileSync(downloaded, destination);
+  fs.chmodSync(destination, 0o755);
+  core.info(`Installed ${bin} from ${url}`);
+}
 
-async function setup(bin) {
-  try {
-    // Get version of tool to be installed
-
-    let url = `https://github.com/calcit-lang/calcit/releases/download/${version}/${bin}`;
-    let binPath = `${binFolder}${bin}`;
-
-    const pathToCr = await tc.downloadTool(url, binPath);
-    console.log(`downloaded to: ${pathToCr}`);
-
-    fs.chmodSync(binPath, 0o755);
-    core.addPath(binFolder);
-    console.log(`add binary to path: ${binPath}`);
-  } catch (e) {
-    core.setFailed(e);
+function verifyCrVersion(installDir, version) {
+  const reported = execFileSync(path.join(installDir, "cr"), ["--version"], { encoding: "utf8" }).trim();
+  if (reported !== version) {
+    throw new Error(`E_SETUP_VERSION_VERIFY: downloaded cr reports '${reported}', expected '${version}'`);
   }
 }
 
 module.exports = setup;
 
-if (require.main === require.cache[eval('__filename')]) {
-  if (fs.existsSync("deps.cirru")) {
-    console.log("Reading deps.cirru");
-    const depsCirru = fs.readFileSync("deps.cirru", "utf8");
-    version = readVersionFromDeps(depsCirru);
+async function setup() {
+  const { file: depsFile, resolvedFile } = resolveDepsFile(workspace, core.getInput("deps-file"));
+  const depsContent = fs.existsSync(resolvedFile) ? fs.readFileSync(resolvedFile, "utf8") : null;
+  const { version, source } = resolveVersion({
+    depsContent,
+    depsFile,
+    inputVersion: core.getInput("version"),
+  });
+  const tools = resolveTools(core.getInput("tools"), crWasm);
+  const installDir = createInstallDir(version);
+
+  core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
+  await Promise.all(tools.map((bin) => installTool({ bin, version, installDir })));
+  core.addPath(installDir);
+  if (tools.includes("cr")) {
+    verifyCrVersion(installDir, version);
   }
 
-  const inputVersion = core.getInput("version");
-  if (inputVersion) {
-    version = inputVersion;
-  }
-
-  if (!version) {
-    core.setFailed(
-      "Version is not set, neither in deps.cirru (calcit-verison) nor in input(version)",
-    );
-    return;
-  }
-
-  console.log(
-    `Setting up Calcit ${version}, with bundler: ${bundler}, cr-wasm: ${crWasm}`,
-  );
-  setup("cr");
-  setup("caps");
-  if (bundler) {
-    setup("bundle_calcit");
-  }
-  if (crWasm) {
-    setup("cr-wasm");
-  }
+  core.setOutput("version", version);
+  core.setOutput("version-source", source);
+  core.setOutput("deps-file", depsContent == null ? "" : depsFile);
+  core.setOutput("tools", tools.join(","));
+  await core.summary
+    .addHeading("Calcit setup")
+    .addTable([
+      [{ data: "Version", header: true }, version],
+      [{ data: "Source", header: true }, source],
+      [{ data: "Tools", header: true }, tools.join(", ")],
+    ])
+    .write();
 }
+
+if (require.main === require.cache[eval('__filename')]) {
+  setup().catch((error) => core.setFailed(error.message || error));
+}
+
+
+/***/ }),
+
+/***/ 8217:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const path = __nccwpck_require__(1017);
+
+const CALCIT_VERSION = /:calcit-version\s+\|?([^\s)\]\}]+)/g;
+const SEMVER_IDENTIFIER = "(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)";
+const SEMVER = new RegExp(
+  `^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-${SEMVER_IDENTIFIER}(?:\\.${SEMVER_IDENTIFIER})*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`,
+);
+const SUPPORTED_TOOLS = new Set(["cr", "caps", "cr-wasm"]);
+
+function parseCalcitVersion(content, source = "deps.cirru") {
+  const matches = Array.from(content.matchAll(CALCIT_VERSION), (match) => match[1]);
+
+  if (matches.length === 0) {
+    return null;
+  }
+  if (matches.length > 1) {
+    throw new Error(`E_SETUP_VERSION_INVALID: found ${matches.length} :calcit-version declarations in ${source}`);
+  }
+  if (!SEMVER.test(matches[0])) {
+    throw new Error(`E_SETUP_VERSION_INVALID: '${matches[0]}' in ${source} is not a Calcit release version`);
+  }
+  return matches[0];
+}
+
+function resolveVersion({ depsContent, depsFile, inputVersion }) {
+  const fileVersion = depsContent == null ? null : parseCalcitVersion(depsContent, depsFile);
+  const explicitVersion = inputVersion.trim();
+
+  if (fileVersion && explicitVersion && fileVersion !== explicitVersion) {
+    throw new Error(
+      `E_SETUP_VERSION_CONFLICT: ${depsFile} declares ${fileVersion}, but the version input requests ${explicitVersion}. Remove the input or make both values identical.`,
+    );
+  }
+  if (fileVersion) {
+    return { version: fileVersion, source: "deps-file" };
+  }
+  if (explicitVersion) {
+    if (!SEMVER.test(explicitVersion)) {
+      throw new Error(`E_SETUP_VERSION_INVALID: version input '${explicitVersion}' is not a Calcit release version`);
+    }
+    return { version: explicitVersion, source: "input" };
+  }
+  throw new Error(
+    `E_SETUP_VERSION_MISSING: declare :calcit-version in ${depsFile}, or supply the version input for a task without a project deps file.`,
+  );
+}
+
+function resolveDepsFile(workspace, requestedPath) {
+  const file = requestedPath.trim() || "deps.cirru";
+  const resolvedWorkspace = path.resolve(workspace);
+  const resolvedFile = path.resolve(resolvedWorkspace, file);
+  const relative = path.relative(resolvedWorkspace, resolvedFile);
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`E_SETUP_DEPS_PATH: deps-file '${file}' must stay inside the GitHub workspace`);
+  }
+  return { file, resolvedFile };
+}
+
+function resolveTools(toolsInput, crWasm) {
+  const requested = (toolsInput || "cr,caps")
+    .split(",")
+    .map((tool) => tool.trim())
+    .filter(Boolean);
+
+  if (crWasm && !requested.includes("cr-wasm")) {
+    requested.push("cr-wasm");
+  }
+  if (requested.length === 0) {
+    throw new Error("E_SETUP_TOOLS_EMPTY: tools must contain at least one supported tool");
+  }
+
+  const unique = new Set();
+  for (const tool of requested) {
+    if (!SUPPORTED_TOOLS.has(tool)) {
+      throw new Error(`E_SETUP_TOOL_UNKNOWN: '${tool}' is not supported; use cr, caps, or cr-wasm`);
+    }
+    if (unique.has(tool)) {
+      throw new Error(`E_SETUP_TOOL_DUPLICATE: '${tool}' appears more than once`);
+    }
+    unique.add(tool);
+  }
+  return [...unique];
+}
+
+module.exports = { parseCalcitVersion, resolveDepsFile, resolveTools, resolveVersion };
 
 
 /***/ }),

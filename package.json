@@ -1,12 +1,13 @@
 {
-  "name": "setup-cr",
-  "version": "0.0.9",
+  "name": "setup-calcit",
+  "version": "1.0.0",
   "description": "Setup Calcit runtime",
   "main": "./index.js",
-  "repository": "git@github.com:calcit-lang/setup-cr.git",
+  "repository": "git@github.com:tiye/setup-calcit.git",
   "author": "tiye <jiyinyiyong@gmail.com>",
   "license": "MIT",
   "scripts": {
+    "test": "node --test",
     "dist": "ncc build index.js -o dist --source-map",
     "stage-dist": "git add -v dist"
   },
