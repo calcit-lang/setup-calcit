@@ -12,7 +12,7 @@ only Calcit version source is `deps.cirru`:
 ```yml
 - uses: actions/checkout@v4
 
-- uses: tiye/setup-calcit@v1
+- uses: calcit-lang/setup-calcit@v1
 ```
 
 This installs `cr` and `caps` for the version in `deps.cirru`. Then run project commands explicitly:
@@ -46,11 +46,11 @@ as outputs.
 GitHub Actions does not follow action-repository rename redirects. Therefore
 [`calcit-lang/setup-cr`](https://github.com/calcit-lang/setup-cr) remains the
 legacy Action and existing workflows do not need to change. New projects should
-use `tiye/setup-calcit@v1`; migrating an existing project is an explicit,
+use `calcit-lang/setup-calcit@v1`; migrating an existing project is an explicit,
 one-line replacement after its CI has passed:
 
 ```yaml
-- uses: tiye/setup-calcit@v1
+- uses: calcit-lang/setup-calcit@v1
 ```
 
 The two Actions keep the same inputs and outputs during the migration. Do not
