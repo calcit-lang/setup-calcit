@@ -75,6 +75,22 @@ test("reports malformed manifest JSON with the setup error prefix", async () => 
   );
 });
 
+test("rejects manifest assets with an invalid size", async () => {
+  const manifest = JSON.stringify({
+    schemaVersion: 1,
+    version: "0.13.27",
+    assets: [{ name: "calcit", sha256: "a".repeat(64), size: -1 }],
+  });
+  await assert.rejects(
+    downloadReleaseManifest({
+      version: "0.13.27",
+      toolCache: { downloadTool: async () => "/runner/temp/manifest" },
+      fileSystem: { readFileSync: () => manifest },
+    }),
+    /E_SETUP_MANIFEST_INVALID: malformed asset record/,
+  );
+});
+
 test("restores a cached tool without downloading it", async () => {
   const result = await installTool({
     bin: "calcit",

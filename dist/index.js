@@ -117,7 +117,7 @@ async function downloadReleaseManifest({ version, toolCache, info = () => {}, fi
       throw new Error(`E_SETUP_MANIFEST_INVALID: malformed release manifest for ${version}`);
     }
     for (const asset of manifest.assets) {
-      if (typeof asset?.name !== "string" || !/^[a-f0-9]{64}$/.test(asset.sha256) || !Number.isInteger(asset.size)) {
+      if (typeof asset?.name !== "string" || !/^[a-f0-9]{64}$/.test(asset.sha256) || !Number.isSafeInteger(asset.size) || asset.size < 0) {
         throw new Error(`E_SETUP_MANIFEST_INVALID: malformed asset record in release manifest for ${version}`);
       }
     }
