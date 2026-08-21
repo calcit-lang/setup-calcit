@@ -24,7 +24,7 @@ outputs:
   deps-file:
     description: "Project-relative deps file that was inspected"
   tools:
-    description: "Comma-separated installed tools"
+    description: "Comma-separated canonical installed tools (cr is reported as calcit)"
   cache-hit:
     description: "Whether every requested tool was restored from the runner tool cache"
 

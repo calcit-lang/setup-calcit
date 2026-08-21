@@ -58,9 +58,10 @@ one-line replacement after its CI has passed:
 - uses: calcit-lang/setup-calcit@v2
 ```
 
-The two Actions preserve the version inputs and outputs during migration; v2
-also accepts the old `tools: cr,...` spelling as an alias. Do not depend on a
-repository redirect for `uses:` references.
+The version outputs remain stable during migration, and v2 accepts the old
+`tools: cr,...` spelling as an alias. The `tools` output is intentionally
+canonical: both `tools: cr,caps` and `tools: calcit,caps` report `calcit,caps`.
+Do not depend on a repository redirect for `uses:` references.
 
 For CI quality, entries, examples, backend tests, and consumer regression, see the Calcit documentation:
 
