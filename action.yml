@@ -8,6 +8,10 @@ inputs:
   deps-file:
     description: "Path to the project deps.cirru, relative to the GitHub workspace"
     required: false
+  caps-version:
+    description: "Independent calcit-caps release installed from crates.io when caps is requested"
+    required: false
+    default: "0.1.0"
   cr-wasm:
     description: "Compatibility input that additionally installs cr-wasm"
     required: false
@@ -21,6 +25,8 @@ outputs:
     description: "Resolved Calcit version"
   version-source:
     description: "Whether the version came from deps-file or input"
+  caps-version:
+    description: "Resolved independent calcit-caps version"
   deps-file:
     description: "Project-relative deps file that was inspected"
   tools:
