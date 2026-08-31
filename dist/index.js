@@ -8,8 +8,14 @@ const fs = __nccwpck_require__(7147);
 const { execFileSync } = __nccwpck_require__(2081);
 const core = __nccwpck_require__(2186);
 const tc = __nccwpck_require__(7784);
-const { resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion } = __nccwpck_require__(8217);
-const { assertSupportedPlatform, downloadReleaseManifest, ensureCrCompatibilityLink, installTool } = __nccwpck_require__(9039);
+const { resolveCapsVersion, resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion } = __nccwpck_require__(8217);
+const {
+  assertSupportedPlatform,
+  downloadReleaseManifest,
+  ensureCrCompatibilityLink,
+  installStandaloneCaps,
+  installTool,
+} = __nccwpck_require__(9039);
 
 const crWasm = core.getInput("cr-wasm") === "true";
 const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
@@ -35,10 +41,17 @@ async function setup() {
   const toolsInput = core.getInput("tools");
   const tools = resolveTools(toolsInput, crWasm);
   const outputTools = resolveToolOutput(toolsInput, crWasm);
+  const capsVersion = resolveCapsVersion(core.getInput("caps-version"));
 
   core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
   const manifest = await downloadReleaseManifest({ version, toolCache: tc, info: core.info });
-  const installations = await Promise.all(tools.map((bin) => installTool({ bin, version, toolCache: tc, manifest, info: core.info })));
+  const installations = await Promise.all(
+    tools.map((bin) =>
+      bin === "caps"
+        ? installStandaloneCaps({ version: capsVersion, toolCache: tc, info: core.info })
+        : installTool({ bin, version, toolCache: tc, manifest, info: core.info }),
+    ),
+  );
   for (const installation of installations) {
     core.addPath(installation.installDir);
   }
@@ -47,10 +60,18 @@ async function setup() {
     ensureCrCompatibilityLink(calcit);
     verifyCalcitVersion(calcit.executable, version);
   }
+  const caps = installations.find((installation) => installation.bin === "caps");
+  if (caps) {
+    const reported = execFileSync(caps.executable, ["--version"], { encoding: "utf8" }).trim();
+    if (reported !== `caps ${capsVersion}`) {
+      throw new Error(`E_SETUP_CAPS_VERSION_VERIFY: installed caps reports '${reported}', expected 'caps ${capsVersion}'`);
+    }
+  }
   const cacheHit = installations.every((installation) => installation.cacheHit);
 
   core.setOutput("version", version);
   core.setOutput("version-source", source);
+  core.setOutput("caps-version", capsVersion);
   core.setOutput("deps-file", depsContent == null ? "" : depsFile);
   core.setOutput("tools", outputTools.join(","));
   core.setOutput("cache-hit", String(cacheHit));
@@ -58,6 +79,7 @@ async function setup() {
     .addHeading("Calcit setup")
     .addTable([
       [{ data: "Version", header: true }, version],
+      [{ data: "Caps version", header: true }, capsVersion],
       [{ data: "Source", header: true }, source],
       [{ data: "Tools", header: true }, tools.join(", ")],
       [{ data: "Cache hit", header: true }, String(cacheHit)],
@@ -79,6 +101,7 @@ const fs = __nccwpck_require__(7147);
 const os = __nccwpck_require__(2037);
 const path = __nccwpck_require__(1017);
 const { createHash } = __nccwpck_require__(6113);
+const { execFileSync } = __nccwpck_require__(2081);
 
 function assertSupportedPlatform(platform = os.platform(), arch = os.arch()) {
   if (platform !== "linux" || arch !== "x64") {
@@ -185,6 +208,45 @@ async function installTool({ bin, version, toolCache, manifest = null, info = ()
   return { bin, executable, installDir, cacheHit: false };
 }
 
+async function installStandaloneCaps({
+  version,
+  toolCache,
+  info = () => {},
+  fileSystem = fs,
+  execute = execFileSync,
+  tempDirectory = os.tmpdir(),
+}) {
+  const bin = "caps";
+  const tool = cacheName(bin);
+  const cachedDir = toolCache.find(tool, version);
+  if (cachedDir) {
+    info(`Using cached standalone caps ${version} from ${cachedDir}`);
+    return {
+      bin,
+      executable: path.join(cachedDir, bin),
+      installDir: cachedDir,
+      cacheHit: true,
+    };
+  }
+
+  const installRoot = fileSystem.mkdtempSync(path.join(tempDirectory, "setup-calcit-caps-"));
+  info(`Installing standalone calcit-caps ${version} from crates.io`);
+  execute(
+    "cargo",
+    ["install", "calcit-caps", "--version", version, "--locked", "--root", installRoot],
+    { stdio: "inherit" },
+  );
+  const builtExecutable = path.join(installRoot, "bin", bin);
+  if (!fileSystem.existsSync(builtExecutable)) {
+    throw new Error(`E_SETUP_CAPS_INSTALL: cargo install did not create ${builtExecutable}`);
+  }
+  const installDir = await toolCache.cacheFile(builtExecutable, bin, tool, version);
+  const executable = path.join(installDir, bin);
+  fileSystem.chmodSync(executable, 0o755);
+  info(`Installed standalone caps ${version} from crates.io`);
+  return { bin, executable, installDir, cacheHit: false };
+}
+
 function ensureCrCompatibilityLink(installation, fileSystem = fs) {
   const compatibilityPath = path.join(installation.installDir, "cr");
   if (fileSystem.existsSync(compatibilityPath)) {
@@ -207,6 +269,7 @@ module.exports = {
   downloadUrl,
   ensureCrCompatibilityLink,
   installTool,
+  installStandaloneCaps,
   manifestUrl,
   verifyAssetChecksum,
 };
@@ -225,6 +288,7 @@ const SEMVER = new RegExp(
   `^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-${SEMVER_IDENTIFIER}(?:\\.${SEMVER_IDENTIFIER})*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`,
 );
 const SUPPORTED_TOOLS = new Set(["calcit", "caps", "cr-wasm"]);
+const DEFAULT_CAPS_VERSION = "0.1.0";
 
 function parseCalcitVersion(content, source = "deps.cirru") {
   const matches = Array.from(content.matchAll(CALCIT_VERSION), (match) => match[1]);
@@ -275,6 +339,14 @@ function resolveDepsFile(workspace, requestedPath) {
   return { file, resolvedFile };
 }
 
+function resolveCapsVersion(inputVersion = "") {
+  const version = inputVersion.trim() || DEFAULT_CAPS_VERSION;
+  if (!SEMVER.test(version)) {
+    throw new Error(`E_SETUP_CAPS_VERSION_INVALID: caps-version '${version}' is not a standalone caps release version`);
+  }
+  return version;
+}
+
 function resolveTools(toolsInput, crWasm) {
   const requested = requestedTools(toolsInput, crWasm);
 
@@ -313,7 +385,7 @@ function requestedTools(toolsInput, crWasm) {
   return requested;
 }
 
-module.exports = { parseCalcitVersion, resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion };
+module.exports = { parseCalcitVersion, resolveCapsVersion, resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion };
 
 
 /***/ }),

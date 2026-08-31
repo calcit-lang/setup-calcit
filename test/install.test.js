@@ -8,6 +8,7 @@ const {
   downloadReleaseManifest,
   downloadUrl,
   ensureCrCompatibilityLink,
+  installStandaloneCaps,
   installTool,
   manifestUrl,
   verifyAssetChecksum,
@@ -168,6 +169,88 @@ test("downloads, caches, and marks a fresh tool executable", async () => {
   assert.equal(result.cacheHit, false);
   assert.equal(result.executable, "/runner/tool-cache/calcit-caps/0.13.27/x64/caps");
   assert.deepEqual(chmodCalls, [[result.executable, 0o755]]);
+});
+
+test("restores the independent caps release from its own versioned cache", async () => {
+  const result = await installStandaloneCaps({
+    version: "0.1.0",
+    toolCache: {
+      find: (tool, version) => {
+        assert.equal(tool, "calcit-caps");
+        assert.equal(version, "0.1.0");
+        return "/runner/tool-cache/calcit-caps/0.1.0/x64";
+      },
+      cacheFile: () => assert.fail("a cache hit must not cache"),
+    },
+    execute: () => assert.fail("a cache hit must not invoke cargo"),
+  });
+  assert.deepEqual(result, {
+    bin: "caps",
+    executable: "/runner/tool-cache/calcit-caps/0.1.0/x64/caps",
+    installDir: "/runner/tool-cache/calcit-caps/0.1.0/x64",
+    cacheHit: true,
+  });
+});
+
+test("installs and caches independent caps from crates.io", async () => {
+  const calls = [];
+  const result = await installStandaloneCaps({
+    version: "0.1.0",
+    toolCache: {
+      find: () => "",
+      cacheFile: async (source, target, tool, version) => {
+        calls.push(["cache", source, target, tool, version]);
+        return "/runner/tool-cache/calcit-caps/0.1.0/x64";
+      },
+    },
+    fileSystem: {
+      mkdtempSync: (prefix) => {
+        calls.push(["mkdtemp", prefix]);
+        return "/runner/temp/setup-calcit-caps-123";
+      },
+      existsSync: (file) => file === "/runner/temp/setup-calcit-caps-123/bin/caps",
+      chmodSync: (file, mode) => calls.push(["chmod", file, mode]),
+    },
+    execute: (command, args, options) => calls.push(["execute", command, args, options]),
+    tempDirectory: "/runner/temp",
+  });
+
+  assert.deepEqual(calls, [
+    ["mkdtemp", "/runner/temp/setup-calcit-caps-"],
+    [
+      "execute",
+      "cargo",
+      ["install", "calcit-caps", "--version", "0.1.0", "--locked", "--root", "/runner/temp/setup-calcit-caps-123"],
+      { stdio: "inherit" },
+    ],
+    ["cache", "/runner/temp/setup-calcit-caps-123/bin/caps", "caps", "calcit-caps", "0.1.0"],
+    ["chmod", "/runner/tool-cache/calcit-caps/0.1.0/x64/caps", 0o755],
+  ]);
+  assert.deepEqual(result, {
+    bin: "caps",
+    executable: "/runner/tool-cache/calcit-caps/0.1.0/x64/caps",
+    installDir: "/runner/tool-cache/calcit-caps/0.1.0/x64",
+    cacheHit: false,
+  });
+});
+
+test("rejects a standalone caps install that produces no executable", async () => {
+  await assert.rejects(
+    installStandaloneCaps({
+      version: "0.1.0",
+      toolCache: {
+        find: () => "",
+        cacheFile: () => assert.fail("a missing executable must not be cached"),
+      },
+      fileSystem: {
+        mkdtempSync: () => "/runner/temp/setup-calcit-caps-empty",
+        existsSync: () => false,
+      },
+      execute: () => {},
+      tempDirectory: "/runner/temp",
+    }),
+    /E_SETUP_CAPS_INSTALL/,
+  );
 });
 
 test("falls back to the legacy cr release asset when calcit is unavailable", async () => {

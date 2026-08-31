@@ -2,7 +2,14 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
-const { parseCalcitVersion, resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion } = require("../lib/version");
+const {
+  parseCalcitVersion,
+  resolveCapsVersion,
+  resolveDepsFile,
+  resolveToolOutput,
+  resolveTools,
+  resolveVersion,
+} = require("../lib/version");
 
 test("reads one Calcit version from deps.cirru", () => {
   assert.equal(parseCalcitVersion("{} (:calcit-version |0.13.27)"), "0.13.27");
@@ -47,6 +54,13 @@ test("confines deps-file to the workspace", () => {
   const workspace = path.join(path.sep, "tmp", "workspace");
   assert.equal(resolveDepsFile(workspace, "examples/app/deps.cirru").resolvedFile, path.join(workspace, "examples/app/deps.cirru"));
   assert.throws(() => resolveDepsFile(workspace, "../deps.cirru"), /E_SETUP_DEPS_PATH/);
+});
+
+test("resolves the independent caps release separately from Calcit", () => {
+  assert.equal(resolveCapsVersion(), "0.1.0");
+  assert.equal(resolveCapsVersion(""), "0.1.0");
+  assert.equal(resolveCapsVersion("0.2.0-rc.1"), "0.2.0-rc.1");
+  assert.throws(() => resolveCapsVersion("main"), /E_SETUP_CAPS_VERSION_INVALID/);
 });
 
 test("normalizes requested tools without bundler", () => {
