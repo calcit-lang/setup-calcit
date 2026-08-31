@@ -21,6 +21,13 @@ jobs:
     - name: Test version contract
       run: npm test
 
+    - name: Setup standalone caps without a Calcit release download
+      id: setup-caps-only
+      uses: ./
+      with:
+        deps-file: test-fixtures/deps.cirru
+        tools: caps
+
     - name: Setup Calcit from a legacy release
       id: setup
       uses: ./
@@ -38,6 +45,8 @@ jobs:
         test "${{ steps.setup.outputs.version }}" = "0.13.27"
         test "${{ steps.setup.outputs.version-source }}" = "deps-file"
         test "${{ steps.setup.outputs.caps-version }}" = "0.1.0"
+        test "${{ steps.setup-caps-only.outputs.tools }}" = "caps"
+        test "${{ steps.setup-caps-only.outputs.cache-hit }}" = "false"
         test "${{ steps.setup.outputs.tools }}" = "cr,caps"
         test "${{ steps.setup.outputs.cache-hit }}" = "false"
         test "${{ steps.setup-cached.outputs.cache-hit }}" = "true"

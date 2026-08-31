@@ -38,7 +38,8 @@ async function setup() {
   const capsVersion = resolveCapsVersion(core.getInput("caps-version"));
 
   core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
-  const manifest = await downloadReleaseManifest({ version, toolCache: tc, info: core.info });
+  const needsCalcitRelease = tools.some((bin) => bin !== "caps");
+  const manifest = needsCalcitRelease ? await downloadReleaseManifest({ version, toolCache: tc, info: core.info }) : null;
   const installations = await Promise.all(
     tools.map((bin) =>
       bin === "caps"
