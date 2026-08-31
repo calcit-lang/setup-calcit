@@ -58,7 +58,7 @@ trust boundary, so every executable added to `PATH` is checked against the relea
 failure other than the legacy 404 therefore fails the setup instead of trusting an unverifiable cached binary.
 Cold installation of standalone caps requires the Cargo toolchain available on GitHub-hosted Linux runners;
 subsequent setup steps reuse the cached binary. Calcit release manifests no longer own or verify caps after
-the standalone cutover.
+the standalone cutover, and a `tools: caps` setup does not request a Calcit release manifest.
 
 ### Migrating from setup-cr
 
