@@ -1,6 +1,6 @@
 {
   "name": "setup-calcit",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Setup Calcit runtime",
   "main": "./index.js",
   "repository": "git@github.com:calcit-lang/setup-calcit.git",
