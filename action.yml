@@ -9,7 +9,7 @@ inputs:
     description: "Path to the project deps.cirru, relative to the GitHub workspace"
     required: false
   caps-version:
-    description: "Independent calcit-caps release installed from crates.io when caps is requested"
+    description: "Independent calcit-caps GitHub release downloaded when caps is requested"
     required: false
     default: "0.1.0"
   cr-wasm:

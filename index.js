@@ -5,6 +5,7 @@ const tc = require("@actions/tool-cache");
 const { resolveCapsVersion, resolveDepsFile, resolveToolOutput, resolveTools, resolveVersion } = require("./lib/version");
 const {
   assertSupportedPlatform,
+  downloadCapsReleaseManifest,
   downloadReleaseManifest,
   ensureCrCompatibilityLink,
   installStandaloneCaps,
@@ -39,11 +40,14 @@ async function setup() {
 
   core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
   const needsCalcitRelease = tools.some((bin) => bin !== "caps");
-  const manifest = needsCalcitRelease ? await downloadReleaseManifest({ version, toolCache: tc, info: core.info }) : null;
+  const [manifest, capsManifest] = await Promise.all([
+    needsCalcitRelease ? downloadReleaseManifest({ version, toolCache: tc, info: core.info }) : null,
+    tools.includes("caps") ? downloadCapsReleaseManifest({ version: capsVersion, toolCache: tc }) : null,
+  ]);
   const installations = await Promise.all(
     tools.map((bin) =>
       bin === "caps"
-        ? installStandaloneCaps({ version: capsVersion, toolCache: tc, info: core.info })
+        ? installStandaloneCaps({ version: capsVersion, toolCache: tc, manifest: capsManifest, info: core.info })
         : installTool({ bin, version, toolCache: tc, manifest, info: core.info }),
     ),
   );

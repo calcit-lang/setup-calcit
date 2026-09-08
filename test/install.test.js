@@ -4,7 +4,10 @@ const { createHash } = require("node:crypto");
 
 const {
   assertSupportedPlatform,
+  capsDownloadUrl,
+  capsManifestUrl,
   cacheName,
+  downloadCapsReleaseManifest,
   downloadReleaseManifest,
   downloadUrl,
   ensureCrCompatibilityLink,
@@ -26,6 +29,52 @@ test("uses a stable per-tool cache name and release URL", () => {
   assert.equal(
     manifestUrl("0.13.27"),
     "https://github.com/calcit-lang/calcit/releases/download/0.13.27/calcit-release-manifest.json",
+  );
+  assert.equal(capsDownloadUrl("caps", "0.1.0"), "https://github.com/calcit-lang/caps/releases/download/0.1.0/caps");
+  assert.equal(
+    capsManifestUrl("0.1.0"),
+    "https://github.com/calcit-lang/caps/releases/download/0.1.0/caps-release-manifest.json",
+  );
+});
+
+test("downloads and validates the independent caps release manifest", async () => {
+  const manifest = {
+    schemaVersion: 1,
+    version: "0.1.0",
+    assets: [{ name: "caps", sha256: "a".repeat(64), size: 123 }],
+  };
+  const result = await downloadCapsReleaseManifest({
+    version: "0.1.0",
+    toolCache: {
+      downloadTool: async (url) => {
+        assert.equal(url, capsManifestUrl("0.1.0"));
+        return "/runner/temp/caps-manifest";
+      },
+    },
+    fileSystem: { readFileSync: () => JSON.stringify(manifest) },
+  });
+  assert.deepEqual(result, manifest);
+});
+
+test("rejects malformed JSON in the independent caps release manifest", async () => {
+  await assert.rejects(
+    downloadCapsReleaseManifest({
+      version: "0.1.0",
+      toolCache: { downloadTool: async () => "/runner/temp/caps-manifest" },
+      fileSystem: { readFileSync: () => "not valid JSON" },
+    }),
+    /E_SETUP_CAPS_MANIFEST_INVALID: malformed release manifest for 0\.1\.0/,
+  );
+});
+
+test("rejects an independent caps manifest that omits the binary", async () => {
+  await assert.rejects(
+    downloadCapsReleaseManifest({
+      version: "0.1.0",
+      toolCache: { downloadTool: async () => "/runner/temp/caps-manifest" },
+      fileSystem: { readFileSync: () => JSON.stringify({ schemaVersion: 1, version: "0.1.0", assets: [] }) },
+    }).then((manifest) => verifyAssetChecksum({ downloaded: "/runner/temp/caps", assetName: "caps", manifest })),
+    /E_SETUP_MANIFEST_ASSET_MISSING/,
   );
 });
 
@@ -172,17 +221,25 @@ test("downloads, caches, and marks a fresh tool executable", async () => {
 });
 
 test("restores the independent caps release from its own versioned cache", async () => {
+  const content = Buffer.from("cached caps");
+  const manifest = {
+    schemaVersion: 1,
+    version: "0.1.0",
+    assets: [{ name: "caps", sha256: createHash("sha256").update(content).digest("hex"), size: content.length }],
+  };
   const result = await installStandaloneCaps({
     version: "0.1.0",
+    manifest,
     toolCache: {
       find: (tool, version) => {
         assert.equal(tool, "calcit-caps");
         assert.equal(version, "0.1.0");
         return "/runner/tool-cache/calcit-caps/0.1.0/x64";
       },
+      downloadTool: () => assert.fail("a cache hit must not download the binary"),
       cacheFile: () => assert.fail("a cache hit must not cache"),
     },
-    execute: () => assert.fail("a cache hit must not invoke cargo"),
+    fileSystem: { readFileSync: () => content },
   });
   assert.deepEqual(result, {
     bin: "caps",
@@ -192,38 +249,40 @@ test("restores the independent caps release from its own versioned cache", async
   });
 });
 
-test("installs and caches independent caps from crates.io", async () => {
+test("downloads, verifies, and caches the independent caps release binary", async () => {
   const calls = [];
+  const content = Buffer.from("downloaded caps");
+  const manifest = {
+    schemaVersion: 1,
+    version: "0.1.0",
+    assets: [{ name: "caps", sha256: createHash("sha256").update(content).digest("hex"), size: content.length }],
+  };
   const result = await installStandaloneCaps({
     version: "0.1.0",
+    manifest,
     toolCache: {
       find: () => "",
+      downloadTool: async (url) => {
+        calls.push(["download", url]);
+        return "/runner/temp/caps";
+      },
       cacheFile: async (source, target, tool, version) => {
         calls.push(["cache", source, target, tool, version]);
         return "/runner/tool-cache/calcit-caps/0.1.0/x64";
       },
     },
     fileSystem: {
-      mkdtempSync: (prefix) => {
-        calls.push(["mkdtemp", prefix]);
-        return "/runner/temp/setup-calcit-caps-123";
+      readFileSync: (file) => {
+        assert.equal(file, "/runner/temp/caps");
+        return content;
       },
-      existsSync: (file) => file === "/runner/temp/setup-calcit-caps-123/bin/caps",
       chmodSync: (file, mode) => calls.push(["chmod", file, mode]),
     },
-    execute: (command, args, options) => calls.push(["execute", command, args, options]),
-    tempDirectory: "/runner/temp",
   });
 
   assert.deepEqual(calls, [
-    ["mkdtemp", "/runner/temp/setup-calcit-caps-"],
-    [
-      "execute",
-      "cargo",
-      ["install", "calcit-caps", "--version", "0.1.0", "--locked", "--root", "/runner/temp/setup-calcit-caps-123"],
-      { stdio: "inherit" },
-    ],
-    ["cache", "/runner/temp/setup-calcit-caps-123/bin/caps", "caps", "calcit-caps", "0.1.0"],
+    ["download", capsDownloadUrl("caps", "0.1.0")],
+    ["cache", "/runner/temp/caps", "caps", "calcit-caps", "0.1.0"],
     ["chmod", "/runner/tool-cache/calcit-caps/0.1.0/x64/caps", 0o755],
   ]);
   assert.deepEqual(result, {
@@ -234,22 +293,23 @@ test("installs and caches independent caps from crates.io", async () => {
   });
 });
 
-test("rejects a standalone caps install that produces no executable", async () => {
+test("rejects an independent caps binary with a mismatched checksum", async () => {
   await assert.rejects(
     installStandaloneCaps({
       version: "0.1.0",
+      manifest: {
+        schemaVersion: 1,
+        version: "0.1.0",
+        assets: [{ name: "caps", sha256: "a".repeat(64), size: 1 }],
+      },
       toolCache: {
         find: () => "",
-        cacheFile: () => assert.fail("a missing executable must not be cached"),
+        downloadTool: async () => "/runner/temp/caps",
+        cacheFile: () => assert.fail("a mismatched executable must not be cached"),
       },
-      fileSystem: {
-        mkdtempSync: () => "/runner/temp/setup-calcit-caps-empty",
-        existsSync: () => false,
-      },
-      execute: () => {},
-      tempDirectory: "/runner/temp",
+      fileSystem: { readFileSync: () => Buffer.from("not the published caps") },
     }),
-    /E_SETUP_CAPS_INSTALL/,
+    /E_SETUP_CHECKSUM_MISMATCH/,
   );
 });
 
