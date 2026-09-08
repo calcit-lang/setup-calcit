@@ -12,14 +12,14 @@ const {
 } = require("../lib/version");
 
 test("reads one Calcit version from deps.cirru", () => {
-  assert.equal(parseCalcitVersion("{} (:calcit-version |0.13.27)"), "0.13.27");
-  assert.equal(parseCalcitVersion("{} (:calcit-version 0.13.27-beta.1)"), "0.13.27-beta.1");
+  assert.equal(parseCalcitVersion("{} (:calcit-version |0.14.3)"), "0.14.3");
+  assert.equal(parseCalcitVersion("{} (:calcit-version 0.14.3-beta.1)"), "0.14.3-beta.1");
   assert.equal(parseCalcitVersion("{} (:dependencies {})"), null);
 });
 
 test("rejects duplicate and malformed declared versions", () => {
   assert.throws(
-    () => parseCalcitVersion("{} (:calcit-version |0.13.27) (:calcit-version |0.13.28)"),
+    () => parseCalcitVersion("{} (:calcit-version |0.14.3) (:calcit-version |0.14.4)"),
     /E_SETUP_VERSION_INVALID/,
   );
   for (const version of ["main", "01.2.3", "1.2.3-01", "1.2.3-alpha..1"]) {
@@ -29,23 +29,23 @@ test("rejects duplicate and malformed declared versions", () => {
 
 test("uses deps as the normal version source and rejects conflicts", () => {
   assert.deepEqual(
-    resolveVersion({ depsContent: "{} (:calcit-version |0.13.27)", depsFile: "deps.cirru", inputVersion: "" }),
-    { version: "0.13.27", source: "deps-file" },
+    resolveVersion({ depsContent: "{} (:calcit-version |0.14.3)", depsFile: "deps.cirru", inputVersion: "" }),
+    { version: "0.14.3", source: "deps-file" },
   );
   assert.deepEqual(
-    resolveVersion({ depsContent: null, depsFile: "deps.cirru", inputVersion: "0.13.27" }),
-    { version: "0.13.27", source: "input" },
+    resolveVersion({ depsContent: null, depsFile: "deps.cirru", inputVersion: "0.14.3" }),
+    { version: "0.14.3", source: "input" },
   );
   assert.deepEqual(
-    resolveVersion({ depsContent: null, depsFile: "examples/missing/deps.cirru", inputVersion: "0.13.27" }),
-    { version: "0.13.27", source: "input" },
+    resolveVersion({ depsContent: null, depsFile: "examples/missing/deps.cirru", inputVersion: "0.14.3" }),
+    { version: "0.14.3", source: "input" },
   );
   assert.throws(
-    () => resolveVersion({ depsContent: "{} (:calcit-version |0.13.27)", depsFile: "deps.cirru", inputVersion: "0.13.26" }),
+    () => resolveVersion({ depsContent: "{} (:calcit-version |0.14.3)", depsFile: "deps.cirru", inputVersion: "0.14.2" }),
     /E_SETUP_VERSION_CONFLICT/,
   );
   assert.throws(
-    () => resolveVersion({ depsContent: "{} (:calcit-version |main)", depsFile: "deps.cirru", inputVersion: "0.13.27" }),
+    () => resolveVersion({ depsContent: "{} (:calcit-version |main)", depsFile: "deps.cirru", inputVersion: "0.14.3" }),
     /E_SETUP_VERSION_INVALID/,
   );
 });
@@ -57,8 +57,8 @@ test("confines deps-file to the workspace", () => {
 });
 
 test("resolves the independent caps release separately from Calcit", () => {
-  assert.equal(resolveCapsVersion(), "0.1.0");
-  assert.equal(resolveCapsVersion(""), "0.1.0");
+  assert.equal(resolveCapsVersion(), "0.1.1");
+  assert.equal(resolveCapsVersion(""), "0.1.1");
   assert.equal(resolveCapsVersion("0.2.0-rc.1"), "0.2.0-rc.1");
   assert.throws(() => resolveCapsVersion("main"), /E_SETUP_CAPS_VERSION_INVALID/);
 });

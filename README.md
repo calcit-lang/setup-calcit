@@ -4,7 +4,7 @@
 only Calcit version source is `deps.cirru`:
 
 ```cirru.no-check
-{} $ :calcit-version |0.13.27
+{} $ :calcit-version |0.14.3
 ```
 
 ### Normal usage
@@ -15,8 +15,8 @@ only Calcit version source is `deps.cirru`:
 - uses: calcit-lang/setup-calcit@v1
 ```
 
-This downloads `calcit` for the version in `deps.cirru` and installs the independently versioned
-`calcit-caps` package from crates.io. It also creates a lightweight
+This downloads `calcit` for the version in `deps.cirru` and downloads the independently versioned
+`caps` Linux x64 binary from the `calcit-lang/caps` GitHub release. It also creates a lightweight
 `cr -> calcit` link in the Action tool directory, so an unchanged legacy workflow keeps working while it
 migrates. For versions released before the rename, it downloads `cr` and exposes it as `calcit`.
 New and edited commands should use `calcit`:
@@ -37,7 +37,7 @@ run your tests.
 - `tools`: comma-separated tools to install; defaults to `cr,caps` for v1 compatibility, and also accepts
   `cr-wasm`. `cr` is a compatibility alias for the canonical `calcit` tool; requesting both is a duplicate
   error. New workflows can explicitly use `tools: calcit,caps`.
-- `caps-version`: independent `calcit-caps` release; defaults to the cross-project-verified `0.1.0`.
+- `caps-version`: independent `calcit-caps` release; defaults to the cross-project-verified `0.1.1`.
   It does not follow `deps.cirru :calcit-version` and is cached separately.
 - `cr-wasm`: compatibility input that adds `cr-wasm` to `tools`.
 - `version`: fallback only for a task without `deps.cirru`. If both sources exist, values must match.
@@ -56,9 +56,10 @@ legacy compatibility mode; the Action logs that checksum verification is unavail
 For a release that does publish a manifest, the Action fetches it even on a tool-cache hit: the cache is not a
 trust boundary, so every executable added to `PATH` is checked against the release checksum. A manifest download
 failure other than the legacy 404 therefore fails the setup instead of trusting an unverifiable cached binary.
-Cold installation of standalone caps requires the Cargo toolchain available on GitHub-hosted Linux runners;
-subsequent setup steps reuse the cached binary. Calcit release manifests no longer own or verify caps after
-the standalone cutover, and a `tools: caps` setup does not request a Calcit release manifest.
+Standalone caps is downloaded as a prebuilt Linux x64 executable and verified against the
+`caps-release-manifest.json` SHA-256 and byte-size record before it is cached or added to `PATH`; setup no
+longer invokes Cargo to compile it. Calcit release manifests do not own or verify caps, and a `tools: caps`
+setup does not request a Calcit release manifest.
 
 ### Migrating from setup-cr
 
