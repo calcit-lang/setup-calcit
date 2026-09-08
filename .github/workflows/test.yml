@@ -28,7 +28,7 @@ jobs:
         deps-file: test-fixtures/deps.cirru
         tools: caps
 
-    - name: Setup Calcit from a legacy release
+    - name: Setup current Calcit release
       id: setup
       uses: ./
       with:
@@ -42,9 +42,9 @@ jobs:
 
     - name: Capture Calcit
       run: |
-        test "${{ steps.setup.outputs.version }}" = "0.13.27"
+        test "${{ steps.setup.outputs.version }}" = "0.14.3"
         test "${{ steps.setup.outputs.version-source }}" = "deps-file"
-        test "${{ steps.setup.outputs.caps-version }}" = "0.1.0"
+        test "${{ steps.setup.outputs.caps-version }}" = "0.1.1"
         test "${{ steps.setup-caps-only.outputs.tools }}" = "caps"
         test "${{ steps.setup-caps-only.outputs.cache-hit }}" = "false"
         test "${{ steps.setup.outputs.tools }}" = "cr,caps"
@@ -52,5 +52,5 @@ jobs:
         test "${{ steps.setup-cached.outputs.cache-hit }}" = "true"
         calcit --help
         caps --help
-        test "$(caps --version)" = "caps 0.1.0"
+        test "$(caps --version)" = "caps 0.1.1"
         cr eval "range 100"

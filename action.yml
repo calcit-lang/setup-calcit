@@ -11,7 +11,7 @@ inputs:
   caps-version:
     description: "Independent calcit-caps GitHub release downloaded when caps is requested"
     required: false
-    default: "0.1.0"
+    default: "0.1.1"
   cr-wasm:
     description: "Compatibility input that additionally installs cr-wasm"
     required: false

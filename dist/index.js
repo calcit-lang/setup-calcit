@@ -174,7 +174,7 @@ async function downloadCapsReleaseManifest({ version, toolCache, fileSystem = fs
   } catch (_error) {
     throw new Error(`E_SETUP_CAPS_MANIFEST_INVALID: malformed release manifest for ${version}`);
   }
-  if (manifest.schemaVersion !== 1 || manifest.version !== version || !Array.isArray(manifest.assets)) {
+  if (manifest == null || manifest.schemaVersion !== 1 || manifest.version !== version || !Array.isArray(manifest.assets)) {
     throw new Error(`E_SETUP_CAPS_MANIFEST_INVALID: malformed release manifest for ${version}`);
   }
   for (const asset of manifest.assets) {
@@ -315,7 +315,7 @@ const SEMVER = new RegExp(
   `^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-${SEMVER_IDENTIFIER}(?:\\.${SEMVER_IDENTIFIER})*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`,
 );
 const SUPPORTED_TOOLS = new Set(["calcit", "caps", "cr-wasm"]);
-const DEFAULT_CAPS_VERSION = "0.1.0";
+const DEFAULT_CAPS_VERSION = "0.1.1";
 
 function parseCalcitVersion(content, source = "deps.cirru") {
   const matches = Array.from(content.matchAll(CALCIT_VERSION), (match) => match[1]);
