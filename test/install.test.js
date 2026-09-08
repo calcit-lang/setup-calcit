@@ -14,6 +14,7 @@ const {
   installStandaloneCaps,
   installTool,
   manifestUrl,
+  standaloneCapsCacheName,
   verifyAssetChecksum,
 } = require("../lib/install");
 
@@ -25,6 +26,8 @@ test("accepts only the released Linux x64 artifact platform", () => {
 
 test("uses a stable per-tool cache name and release URL", () => {
   assert.equal(cacheName("calcit"), "calcit-calcit");
+  assert.equal(cacheName("caps"), "calcit-caps");
+  assert.equal(standaloneCapsCacheName(), "calcit-caps-release");
   assert.equal(downloadUrl("caps", "0.14.3"), "https://github.com/calcit-lang/calcit/releases/download/0.14.3/caps");
   assert.equal(
     manifestUrl("0.14.3"),
@@ -243,9 +246,9 @@ test("restores the independent caps release from its own versioned cache", async
     manifest,
     toolCache: {
       find: (tool, version) => {
-        assert.equal(tool, "calcit-caps");
+        assert.equal(tool, "calcit-caps-release");
         assert.equal(version, "0.1.1");
-        return "/runner/tool-cache/calcit-caps/0.1.1/x64";
+        return "/runner/tool-cache/calcit-caps-release/0.1.1/x64";
       },
       downloadTool: () => assert.fail("a cache hit must not download the binary"),
       cacheFile: () => assert.fail("a cache hit must not cache"),
@@ -254,8 +257,8 @@ test("restores the independent caps release from its own versioned cache", async
   });
   assert.deepEqual(result, {
     bin: "caps",
-    executable: "/runner/tool-cache/calcit-caps/0.1.1/x64/caps",
-    installDir: "/runner/tool-cache/calcit-caps/0.1.1/x64",
+    executable: "/runner/tool-cache/calcit-caps-release/0.1.1/x64/caps",
+    installDir: "/runner/tool-cache/calcit-caps-release/0.1.1/x64",
     cacheHit: true,
   });
 });
@@ -279,7 +282,7 @@ test("downloads, verifies, and caches the independent caps release binary", asyn
       },
       cacheFile: async (source, target, tool, version) => {
         calls.push(["cache", source, target, tool, version]);
-        return "/runner/tool-cache/calcit-caps/0.1.1/x64";
+        return "/runner/tool-cache/calcit-caps-release/0.1.1/x64";
       },
     },
     fileSystem: {
@@ -293,13 +296,13 @@ test("downloads, verifies, and caches the independent caps release binary", asyn
 
   assert.deepEqual(calls, [
     ["download", capsDownloadUrl("caps", "0.1.1")],
-    ["cache", "/runner/temp/caps", "caps", "calcit-caps", "0.1.1"],
-    ["chmod", "/runner/tool-cache/calcit-caps/0.1.1/x64/caps", 0o755],
+    ["cache", "/runner/temp/caps", "caps", "calcit-caps-release", "0.1.1"],
+    ["chmod", "/runner/tool-cache/calcit-caps-release/0.1.1/x64/caps", 0o755],
   ]);
   assert.deepEqual(result, {
     bin: "caps",
-    executable: "/runner/tool-cache/calcit-caps/0.1.1/x64/caps",
-    installDir: "/runner/tool-cache/calcit-caps/0.1.1/x64",
+    executable: "/runner/tool-cache/calcit-caps-release/0.1.1/x64/caps",
+    installDir: "/runner/tool-cache/calcit-caps-release/0.1.1/x64",
     cacheHit: false,
   });
 });

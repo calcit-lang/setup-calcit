@@ -119,6 +119,10 @@ function cacheName(bin) {
   return `calcit-${bin}`;
 }
 
+function standaloneCapsCacheName() {
+  return "calcit-caps-release";
+}
+
 function downloadUrl(bin, version) {
   return `https://github.com/calcit-lang/calcit/releases/download/${version}/${bin}`;
 }
@@ -247,7 +251,7 @@ async function installStandaloneCaps({
   fileSystem = fs,
 }) {
   const bin = "caps";
-  const tool = cacheName(bin);
+  const tool = standaloneCapsCacheName();
   const cachedDir = toolCache.find(tool, version);
   if (cachedDir) {
     info(`Using cached standalone caps ${version} from ${cachedDir}`);
@@ -298,6 +302,7 @@ module.exports = {
   installTool,
   installStandaloneCaps,
   manifestUrl,
+  standaloneCapsCacheName,
   verifyAssetChecksum,
 };
 
