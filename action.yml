@@ -12,6 +12,9 @@ inputs:
     description: "Independent calcit-caps GitHub release downloaded when caps is requested"
     required: false
     default: "0.1.1"
+  github-token:
+    description: "Optional read-only token for GitHub Release API fallback requests"
+    required: false
   cr-wasm:
     description: "Compatibility input that additionally installs cr-wasm"
     required: false

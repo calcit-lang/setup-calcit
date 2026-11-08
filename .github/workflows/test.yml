@@ -42,7 +42,7 @@ jobs:
 
     - name: Capture Calcit
       run: |
-        test "${{ steps.setup.outputs.version }}" = "0.14.3"
+        test "${{ steps.setup.outputs.version }}" = "0.38.0"
         test "${{ steps.setup.outputs.version-source }}" = "deps-file"
         test "${{ steps.setup.outputs.caps-version }}" = "0.1.1"
         test "${{ steps.setup-caps-only.outputs.tools }}" = "caps"

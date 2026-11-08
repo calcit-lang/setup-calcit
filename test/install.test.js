@@ -177,6 +177,63 @@ test("restores a cached tool without downloading it", async () => {
   });
 });
 
+test("downloads the manifest-verified Calcit binary through GitHub's asset API after HTTP 504", async () => {
+  const version = "0.38.0";
+  const releaseApi = "https://api.github.com/repos/calcit-lang/calcit/releases";
+  const content = Buffer.from("calcit binary");
+  const manifest = {
+    version,
+    assets: [{ name: "calcit", sha256: createHash("sha256").update(content).digest("hex"), size: content.length }],
+  };
+  const expectedDigest = `sha256:${manifest.assets[0].sha256}`;
+  const apiAsset = { name: "calcit", id: 123, size: content.length, digest: expectedDigest };
+  let expectedAuth;
+  const calls = [];
+  const toolCache = {
+    find: () => "",
+    downloadTool: async (url, _destination, auth, headers) => {
+      calls.push(url);
+      if (url === downloadUrl("calcit", version)) {
+        assert.equal(auth, undefined);
+        throw { httpStatusCode: 504 };
+      }
+      assert.equal(auth, expectedAuth);
+      if (url === `${releaseApi}/tags/${version}`) {
+        return "/runner/temp/release";
+      }
+      assert.equal(url, `${releaseApi}/assets/123`);
+      assert.equal(headers.accept, "application/octet-stream");
+      return "/runner/temp/asset";
+    },
+    cacheFile: async (downloaded) => {
+      assert.equal(downloaded, "/runner/temp/asset");
+      return "/runner/cache";
+    },
+  };
+  const fileSystem = {
+    readFileSync: (filename) => filename === "/runner/temp/release"
+      ? JSON.stringify({ tag_name: version, assets: [apiAsset] })
+      : content,
+    chmodSync: () => {},
+  };
+  const result = await installTool({ bin: "calcit", version, toolCache, manifest, fileSystem });
+  assert.equal(result.executable, "/runner/cache/calcit");
+  assert.deepEqual(calls, [downloadUrl("calcit", version), `${releaseApi}/tags/${version}`, `${releaseApi}/assets/123`]);
+
+  expectedAuth = "Bearer test-token";
+  await installTool({ bin: "calcit", version, toolCache, manifest, fileSystem, apiToken: "test-token" });
+  expectedAuth = undefined;
+
+  const mismatched = { ...manifest, assets: [{ ...manifest.assets[0], sha256: "0".repeat(64) }] };
+  toolCache.cacheFile = () => assert.fail("a failed checksum must not reach the cache");
+  await assert.rejects(installTool({ bin: "calcit", version, toolCache, manifest: mismatched, fileSystem }), /E_SETUP_CHECKSUM_MISMATCH/);
+  apiAsset.digest = `sha256:${"0".repeat(64)}`;
+  await assert.rejects(installTool({ bin: "calcit", version, toolCache, manifest, fileSystem }), /E_SETUP_RELEASE_ASSET_API:.*E_SETUP_CHECKSUM_MISMATCH/);
+  apiAsset.digest = expectedDigest;
+  apiAsset.size += 1;
+  await assert.rejects(installTool({ bin: "calcit", version, toolCache, manifest, fileSystem }), /E_SETUP_RELEASE_ASSET_API:.*E_SETUP_CHECKSUM_MISMATCH/);
+});
+
 test("verifies a cached tool before adding it to PATH", async () => {
   const content = Buffer.from("cached calcit");
   const manifest = {
@@ -355,9 +412,9 @@ test("falls back to the legacy cr release asset when calcit is unavailable", asy
   assert.equal(result.executable, "/runner/tool-cache/calcit-calcit/0.14.3/x64/calcit");
 });
 
-test("does not mask non-404 calcit download failures with a legacy fallback", async () => {
+test("propagates non-transient Calcit download failures without a legacy fallback", async () => {
   const urls = [];
-  const failure = { httpStatusCode: 503 };
+  const failure = { httpStatusCode: 403 };
 
   await assert.rejects(
     installTool({

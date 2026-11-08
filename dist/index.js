@@ -46,15 +46,16 @@ async function setup() {
 
   core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
   const needsCalcitRelease = tools.some((bin) => bin !== "caps");
+  const downloads = { toolCache: tc, info: core.info, apiToken: core.getInput("github-token") };
   const [manifest, capsManifest] = await Promise.all([
-    needsCalcitRelease ? downloadReleaseManifest({ version, toolCache: tc, info: core.info }) : null,
-    tools.includes("caps") ? downloadCapsReleaseManifest({ version: capsVersion, toolCache: tc }) : null,
+    needsCalcitRelease ? downloadReleaseManifest({ version, ...downloads }) : null,
+    tools.includes("caps") ? downloadCapsReleaseManifest({ version: capsVersion, ...downloads }) : null,
   ]);
   const installations = await Promise.all(
     tools.map((bin) =>
       bin === "caps"
-        ? installStandaloneCaps({ version: capsVersion, toolCache: tc, manifest: capsManifest, info: core.info })
-        : installTool({ bin, version, toolCache: tc, manifest, info: core.info }),
+        ? installStandaloneCaps({ version: capsVersion, manifest: capsManifest, ...downloads })
+        : installTool({ bin, version, manifest, ...downloads }),
     ),
   );
   for (const installation of installations) {
@@ -143,9 +144,12 @@ function isNotFoundError(error) {
   return error?.httpStatusCode === 404 || error?.statusCode === 404;
 }
 
-async function downloadReleaseManifest({ version, toolCache, info = () => {}, fileSystem = fs }) {
+async function downloadReleaseManifest({ version, toolCache, apiToken, info = () => {}, fileSystem = fs }) {
   try {
-    const downloaded = await toolCache.downloadTool(manifestUrl(version));
+    const downloaded = await downloadReleaseAsset({
+      url: manifestUrl(version), repository: "calcit-lang/calcit", assetName: "calcit-release-manifest.json",
+      version, toolCache, apiToken, info, fileSystem,
+    });
     let manifest;
     try {
       manifest = JSON.parse(fileSystem.readFileSync(downloaded, "utf8"));
@@ -170,8 +174,11 @@ async function downloadReleaseManifest({ version, toolCache, info = () => {}, fi
   }
 }
 
-async function downloadCapsReleaseManifest({ version, toolCache, fileSystem = fs }) {
-  const downloaded = await toolCache.downloadTool(capsManifestUrl(version));
+async function downloadCapsReleaseManifest({ version, toolCache, apiToken, info = () => {}, fileSystem = fs }) {
+  const downloaded = await downloadReleaseAsset({
+    url: capsManifestUrl(version), repository: "calcit-lang/caps", assetName: "caps-release-manifest.json",
+    version, toolCache, apiToken, info, fileSystem,
+  });
   let manifest;
   try {
     manifest = JSON.parse(fileSystem.readFileSync(downloaded, "utf8"));
@@ -206,7 +213,44 @@ function verifyAssetChecksum({ downloaded, assetName, manifest, fileSystem = fs 
   }
 }
 
-async function installTool({ bin, version, toolCache, manifest = null, info = () => {}, fileSystem = fs }) {
+/** Retrieve an official release asset and verify the API metadata on gateway-error fallback. */
+async function downloadReleaseAsset({ url, repository, assetName, version, toolCache, apiToken, info, fileSystem }) {
+  try {
+    return await toolCache.downloadTool(url);
+  } catch (error) {
+    const status = error?.httpStatusCode ?? error?.statusCode;
+    if (![502, 503, 504].includes(status)) {
+      throw error;
+    }
+    info(`Release download returned HTTP ${status} for ${assetName} ${version}; trying the GitHub Release asset API`);
+    const releaseApi = `https://api.github.com/repos/${repository}/releases`;
+    const auth = apiToken ? `Bearer ${apiToken}` : undefined;
+    try {
+      const metadata = await toolCache.downloadTool(`${releaseApi}/tags/${encodeURIComponent(version)}`, undefined, auth);
+      const release = JSON.parse(fileSystem.readFileSync(metadata, "utf8"));
+      const asset = release?.assets?.find((item) => item.name === assetName);
+      const sha256 = /^sha256:([a-f0-9]{64})$/.exec(asset?.digest)?.[1];
+      if (release?.tag_name !== version || !Number.isSafeInteger(asset?.id) || asset.id <= 0 ||
+          !sha256 || !Number.isSafeInteger(asset.size) || asset.size < 0) {
+        throw new Error("no matching asset with a published SHA-256 and size on the requested release");
+      }
+      const downloaded = await toolCache.downloadTool(`${releaseApi}/assets/${asset.id}`, undefined, auth, {
+        accept: "application/octet-stream",
+      });
+      verifyAssetChecksum({
+        downloaded, assetName, fileSystem,
+        manifest: { version, assets: [{ name: assetName, sha256, size: asset.size }] },
+      });
+      return downloaded;
+    } catch (apiError) {
+      throw new Error(`E_SETUP_RELEASE_ASSET_API: could not download ${assetName} ${version} after HTTP ${status}: ${apiError.message}`, {
+        cause: apiError,
+      });
+    }
+  }
+}
+
+async function installTool({ bin, version, toolCache, manifest = null, apiToken, info = () => {}, fileSystem = fs }) {
   const tool = cacheName(bin);
   const cachedDir = toolCache.find(tool, version);
   if (cachedDir) {
@@ -225,7 +269,9 @@ async function installTool({ bin, version, toolCache, manifest = null, info = ()
   let installedUrl = url;
   let downloaded;
   try {
-    downloaded = await toolCache.downloadTool(url);
+    downloaded = await downloadReleaseAsset({
+      url, repository: "calcit-lang/calcit", assetName: bin, version, toolCache, apiToken, info, fileSystem,
+    });
   } catch (error) {
     if (bin !== "calcit" || !isNotFoundError(error)) {
       throw error;
@@ -233,7 +279,9 @@ async function installTool({ bin, version, toolCache, manifest = null, info = ()
     const legacyUrl = downloadUrl("cr", version);
     info(`Calcit asset is unavailable for ${version}; using the compatible legacy cr asset from ${legacyUrl}`);
     installedUrl = legacyUrl;
-    downloaded = await toolCache.downloadTool(legacyUrl);
+    downloaded = await downloadReleaseAsset({
+      url: legacyUrl, repository: "calcit-lang/calcit", assetName: "cr", version, toolCache, apiToken, info, fileSystem,
+    });
   }
   verifyAssetChecksum({ downloaded, assetName: path.basename(installedUrl), manifest, fileSystem });
   const installDir = await toolCache.cacheFile(downloaded, bin, tool, version);
@@ -247,6 +295,7 @@ async function installStandaloneCaps({
   version,
   toolCache,
   manifest,
+  apiToken,
   info = () => {},
   fileSystem = fs,
 }) {
@@ -266,7 +315,9 @@ async function installStandaloneCaps({
   }
 
   const url = capsDownloadUrl(bin, version);
-  const downloaded = await toolCache.downloadTool(url);
+  const downloaded = await downloadReleaseAsset({
+    url, repository: "calcit-lang/caps", assetName: bin, version, toolCache, apiToken, info, fileSystem,
+  });
   verifyAssetChecksum({ downloaded, assetName: bin, manifest, fileSystem });
   const installDir = await toolCache.cacheFile(downloaded, bin, tool, version);
   const executable = path.join(installDir, bin);
