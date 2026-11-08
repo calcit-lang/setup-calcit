@@ -185,14 +185,19 @@ test("downloads the manifest-verified Calcit binary through GitHub's asset API a
     version,
     assets: [{ name: "calcit", sha256: createHash("sha256").update(content).digest("hex"), size: content.length }],
   };
+  const expectedDigest = `sha256:${manifest.assets[0].sha256}`;
+  const apiAsset = { name: "calcit", id: 123, size: content.length, digest: expectedDigest };
+  let expectedAuth;
   const calls = [];
   const toolCache = {
     find: () => "",
-    downloadTool: async (url, _destination, _auth, headers) => {
+    downloadTool: async (url, _destination, auth, headers) => {
       calls.push(url);
       if (url === downloadUrl("calcit", version)) {
+        assert.equal(auth, undefined);
         throw { httpStatusCode: 504 };
       }
+      assert.equal(auth, expectedAuth);
       if (url === `${releaseApi}/tags/${version}`) {
         return "/runner/temp/release";
       }
@@ -207,7 +212,7 @@ test("downloads the manifest-verified Calcit binary through GitHub's asset API a
   };
   const fileSystem = {
     readFileSync: (filename) => filename === "/runner/temp/release"
-      ? JSON.stringify({ tag_name: version, assets: [{ name: "calcit", id: 123, size: content.length, digest: `sha256:${manifest.assets[0].sha256}` }] })
+      ? JSON.stringify({ tag_name: version, assets: [apiAsset] })
       : content,
     chmodSync: () => {},
   };
@@ -215,9 +220,18 @@ test("downloads the manifest-verified Calcit binary through GitHub's asset API a
   assert.equal(result.executable, "/runner/cache/calcit");
   assert.deepEqual(calls, [downloadUrl("calcit", version), `${releaseApi}/tags/${version}`, `${releaseApi}/assets/123`]);
 
+  expectedAuth = "Bearer test-token";
+  await installTool({ bin: "calcit", version, toolCache, manifest, fileSystem, apiToken: "test-token" });
+  expectedAuth = undefined;
+
   const mismatched = { ...manifest, assets: [{ ...manifest.assets[0], sha256: "0".repeat(64) }] };
   toolCache.cacheFile = () => assert.fail("a failed checksum must not reach the cache");
   await assert.rejects(installTool({ bin: "calcit", version, toolCache, manifest: mismatched, fileSystem }), /E_SETUP_CHECKSUM_MISMATCH/);
+  apiAsset.digest = `sha256:${"0".repeat(64)}`;
+  await assert.rejects(installTool({ bin: "calcit", version, toolCache, manifest, fileSystem }), /E_SETUP_RELEASE_ASSET_API:.*E_SETUP_CHECKSUM_MISMATCH/);
+  apiAsset.digest = expectedDigest;
+  apiAsset.size += 1;
+  await assert.rejects(installTool({ bin: "calcit", version, toolCache, manifest, fileSystem }), /E_SETUP_RELEASE_ASSET_API:.*E_SETUP_CHECKSUM_MISMATCH/);
 });
 
 test("verifies a cached tool before adding it to PATH", async () => {

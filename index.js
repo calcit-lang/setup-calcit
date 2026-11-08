@@ -40,15 +40,16 @@ async function setup() {
 
   core.info(`Setting up Calcit ${version} from ${source}${depsContent == null ? " (no deps file found)" : ""}`);
   const needsCalcitRelease = tools.some((bin) => bin !== "caps");
+  const downloads = { toolCache: tc, info: core.info, apiToken: core.getInput("github-token") };
   const [manifest, capsManifest] = await Promise.all([
-    needsCalcitRelease ? downloadReleaseManifest({ version, toolCache: tc, info: core.info }) : null,
-    tools.includes("caps") ? downloadCapsReleaseManifest({ version: capsVersion, toolCache: tc, info: core.info }) : null,
+    needsCalcitRelease ? downloadReleaseManifest({ version, ...downloads }) : null,
+    tools.includes("caps") ? downloadCapsReleaseManifest({ version: capsVersion, ...downloads }) : null,
   ]);
   const installations = await Promise.all(
     tools.map((bin) =>
       bin === "caps"
-        ? installStandaloneCaps({ version: capsVersion, toolCache: tc, manifest: capsManifest, info: core.info })
-        : installTool({ bin, version, toolCache: tc, manifest, info: core.info }),
+        ? installStandaloneCaps({ version: capsVersion, manifest: capsManifest, ...downloads })
+        : installTool({ bin, version, manifest, ...downloads }),
     ),
   );
   for (const installation of installations) {

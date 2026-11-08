@@ -39,6 +39,7 @@ run your tests.
   error. New workflows can explicitly use `tools: calcit,caps`.
 - `caps-version`: independent `calcit-caps` release; defaults to the cross-project-verified `0.1.1`.
   It does not follow `deps.cirru :calcit-version` and is cached separately.
+- `github-token`: optional read-only token for Release API fallback requests when unauthenticated API limits are an issue.
 - `cr-wasm`: compatibility input that adds `cr-wasm` to `tools`.
 - `version`: fallback only for a task without `deps.cirru`. If both sources exist, values must match.
 
