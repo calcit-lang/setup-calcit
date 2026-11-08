@@ -56,6 +56,8 @@ legacy compatibility mode; the Action logs that checksum verification is unavail
 For a release that does publish a manifest, the Action fetches it even on a tool-cache hit: the cache is not a
 trust boundary, so every executable added to `PATH` is checked against the release checksum. A manifest download
 failure other than the legacy 404 therefore fails the setup instead of trusting an unverifiable cached binary.
+If a release download returns HTTP 502, 503, or 504, setup can retrieve the same tagged asset through
+GitHub's Release API. This path verifies GitHub's published SHA-256 and byte size before using the file.
 Standalone caps is downloaded as a prebuilt Linux x64 executable and verified against the
 `caps-release-manifest.json` SHA-256 and byte-size record before it is cached or added to `PATH`; setup no
 longer invokes Cargo to compile it. Calcit release manifests do not own or verify caps, and a `tools: caps`

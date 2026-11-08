@@ -42,7 +42,7 @@ async function setup() {
   const needsCalcitRelease = tools.some((bin) => bin !== "caps");
   const [manifest, capsManifest] = await Promise.all([
     needsCalcitRelease ? downloadReleaseManifest({ version, toolCache: tc, info: core.info }) : null,
-    tools.includes("caps") ? downloadCapsReleaseManifest({ version: capsVersion, toolCache: tc }) : null,
+    tools.includes("caps") ? downloadCapsReleaseManifest({ version: capsVersion, toolCache: tc, info: core.info }) : null,
   ]);
   const installations = await Promise.all(
     tools.map((bin) =>
