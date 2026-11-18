@@ -44,7 +44,7 @@ jobs:
       run: |
         test "${{ steps.setup.outputs.version }}" = "0.38.0"
         test "${{ steps.setup.outputs.version-source }}" = "deps-file"
-        test "${{ steps.setup.outputs.caps-version }}" = "0.1.1"
+        test "${{ steps.setup.outputs.caps-version }}" = "0.1.2"
         test "${{ steps.setup-caps-only.outputs.tools }}" = "caps"
         test "${{ steps.setup-caps-only.outputs.cache-hit }}" = "false"
         test "${{ steps.setup.outputs.tools }}" = "cr,caps"
@@ -52,5 +52,5 @@ jobs:
         test "${{ steps.setup-cached.outputs.cache-hit }}" = "true"
         calcit --help
         caps --help
-        test "$(caps --version)" = "caps 0.1.1"
+        test "$(caps --version)" = "caps 0.1.2"
         cr eval "range 100"

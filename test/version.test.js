@@ -57,8 +57,9 @@ test("confines deps-file to the workspace", () => {
 });
 
 test("resolves the independent caps release separately from Calcit", () => {
-  assert.equal(resolveCapsVersion(), "0.1.1");
-  assert.equal(resolveCapsVersion(""), "0.1.1");
+  assert.equal(resolveCapsVersion(), "0.1.2");
+  assert.equal(resolveCapsVersion(""), "0.1.2");
+  assert.equal(resolveCapsVersion("0.1.1"), "0.1.1");
   assert.equal(resolveCapsVersion("0.2.0-rc.1"), "0.2.0-rc.1");
   assert.throws(() => resolveCapsVersion("main"), /E_SETUP_CAPS_VERSION_INVALID/);
 });
