@@ -37,7 +37,7 @@ run your tests.
 - `tools`: comma-separated tools to install; defaults to `cr,caps` for v1 compatibility, and also accepts
   `cr-wasm`. `cr` is a compatibility alias for the canonical `calcit` tool; requesting both is a duplicate
   error. New workflows can explicitly use `tools: calcit,caps`.
-- `caps-version`: independent `calcit-caps` release; defaults to the cross-project-verified `0.1.1`.
+- `caps-version`: independent `calcit-caps` release; defaults to the cross-project-verified `0.1.2`.
   It does not follow `deps.cirru :calcit-version` and is cached separately.
 - `github-token`: optional read-only token for Release API fallback requests when unauthenticated API limits are an issue.
 - `cr-wasm`: compatibility input that adds `cr-wasm` to `tools`.
